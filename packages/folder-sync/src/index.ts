@@ -1,0 +1,6 @@
+export * from './types'
+export { toAbs } from './paths'
+export { scanTree, type ScanOptions, type ScanResult } from './scan'
+export { compareFolders, type DiffOptions, type DiffResult } from './diff'
+export { buildPlan, itemDirections, type PlanOptions } from './plan'
+export { executePlan, type ExecuteOptions, type SyncProgress, type SyncReport, type ActionResult } from './execute'

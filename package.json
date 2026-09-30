@@ -1,0 +1,21 @@
+{
+  "name": "mymius",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "pnpm -r --workspace-concurrency=1 typecheck",
+    "dev": "pnpm --filter @mymius/desktop dev",
+    "build": "pnpm --filter @mymius/desktop build",
+    "dist": "pnpm --filter @mymius/desktop dist"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.2"
+  }
+}

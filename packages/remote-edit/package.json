@@ -1,0 +1,18 @@
+{
+  "name": "@mymius/remote-edit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mymius/core": "workspace:*",
+    "@mymius/platform": "workspace:*",
+    "@mymius/providers": "workspace:*",
+    "chokidar": "^5.0.0"
+  }
+}

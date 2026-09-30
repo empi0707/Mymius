@@ -1,0 +1,23 @@
+appId: app.mymius.desktop
+productName: Mymius
+directories:
+  buildResources: build
+  output: release
+files:
+  - out/**/*
+# One config, three platforms. Cross-building is limited (mac targets need macOS), so CI builds each on its own OS.
+mac:
+  category: public.app-category.developer-tools
+  target: [dmg, zip]
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  # Signing and notarization read APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / CSC_LINK from the environment.
+win:
+  target: [nsis, zip]
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+linux:
+  category: Development
+  target: [AppImage, deb]
