@@ -94,7 +94,7 @@ describe('TerminalHub', () => {
     const { hub } = setup({ maxSessions: 1 })
     const extra = new FakeSession()
     const dispose = vi.fn()
-    expect(() => hub.add(extra, dispose)).toThrow(/Too many/)
+    expect(() => hub.add(extra, dispose)).toThrow(/quá nhiều/)
     expect(extra.closed).toBe(1)
     expect(dispose).toHaveBeenCalled()
   })

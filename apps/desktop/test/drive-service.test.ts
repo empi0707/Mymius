@@ -141,9 +141,9 @@ describe('turning sync on', () => {
   it('a refused consent screen is reported and leaves nothing behind', async () => {
     const s = await setup('a', { vault: true, client: true })
     g.control.denyNextConsent()
-    expect(await s.service.connect()).toMatchObject({ ok: false, error: expect.stringMatching(/not granted/) })
+    expect(await s.service.connect()).toMatchObject({ ok: false, error: expect.stringMatching(/chưa được cấp/) })
     expect(s.store.getLocal('drive-tokens')).toBeUndefined()
-    expect((await s.service.status())).toMatchObject({ phase: 'not-connected', error: expect.stringMatching(/not granted/) })
+    expect((await s.service.status())).toMatchObject({ phase: 'not-connected', error: expect.stringMatching(/chưa được cấp/) })
     expect(driveNames()).toEqual([])
   })
 
@@ -154,7 +154,7 @@ describe('turning sync on', () => {
     await until(() => s.opened.length === 1, 'browser opened')
     expect((await s.service.status()).phase).toBe('connecting')
     s.service.cancelConnect()
-    expect(await p).toMatchObject({ ok: false, error: expect.stringMatching(/cancelled/) })
+    expect(await p).toMatchObject({ ok: false, error: expect.stringMatching(/Đã hủy/) })
     expect((await s.service.status()).phase).toBe('not-connected')
   })
 
@@ -167,7 +167,7 @@ describe('turning sync on', () => {
   it('a second sign-in while one is running, or while connected, is refused', async () => {
     const s = await setup('a', { vault: true, client: true })
     await s.service.connect()
-    expect(await s.service.connect()).toMatchObject({ ok: false, error: expect.stringMatching(/Already connected/) })
+    expect(await s.service.connect()).toMatchObject({ ok: false, error: expect.stringMatching(/Đã kết nối/) })
     expect((await s.service.setClient({ clientId: 'other' })).ok).toBe(false)
   })
 })
@@ -256,7 +256,7 @@ describe('when access is withdrawn', () => {
     await until(async () => (await s.service.status()).lastSyncAt !== undefined, 'first sync')
     g.control.expireAccessTokens(); g.control.revokeAllGrants()
     expect(await s.service.syncNow()).toMatchObject({ ok: false })
-    expect((await s.service.status())).toMatchObject({ phase: 'needs-auth', error: expect.stringMatching(/Sign in again/) })
+    expect((await s.service.status())).toMatchObject({ phase: 'needs-auth', error: expect.stringMatching(/đăng nhập lại/) })
     expect(names(s.store)).toEqual(['one'])
 
     expect(await s.service.connect()).toEqual({ ok: true })
@@ -301,7 +301,7 @@ describe('turning sync off', () => {
     const remote = driveNames()
     g.control.expireAccessTokens(); g.control.revokeAllGrants()
     const r = await a.service.disconnect(true)
-    expect(r).toMatchObject({ ok: false, error: expect.stringMatching(/Signed out on this computer, but the synced data could not be erased/) })
+    expect(r).toMatchObject({ ok: false, error: expect.stringMatching(/Đã đăng xuất trên máy này, nhưng chưa xóa được dữ liệu/) })
     expect(await a.service.status()).toMatchObject({ phase: 'not-connected' })
     expect(a.store.getLocal('drive-tokens')).toBeUndefined()
     expect(names(a.store)).toEqual(['keep-me'])

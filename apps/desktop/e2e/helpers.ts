@@ -105,7 +105,7 @@ export async function createVault(page: Page, passphrase: string): Promise<void>
   await page.click('button:has-text("Create vault")')
   await page.check('input[name=saved]')
   await page.click('button:has-text("Continue")')
-  await page.waitForSelector('text=No saved hosts yet')
+  await page.waitForSelector('text=Chưa có host nào được lưu')
 }
 
 export async function addPasswordHost(page: Page, opts: { name: string; port: number; username: string; password: string }): Promise<void> {

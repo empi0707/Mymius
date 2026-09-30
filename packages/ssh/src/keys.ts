@@ -16,20 +16,20 @@ export interface KeyInfo {
  * Throws with a message fit to show the user.
  */
 export function inspectPrivateKey(text: string, passphrase?: string): KeyInfo {
-  if (text.length > 64 * 1024) throw new Error('That file is too large to be a private key')
+  if (text.length > 64 * 1024) throw new Error('File đó quá lớn để là khóa riêng tư')
   const plain = utils.parseKey(text)
   let parsed = plain
   let encrypted = false
   if (plain instanceof Error) {
-    if (!/passphrase|encrypted/i.test(plain.message)) throw new Error('This is not a valid private key file')
+    if (!/passphrase|encrypted/i.test(plain.message)) throw new Error('Đây không phải file khóa riêng tư hợp lệ')
     encrypted = true
-    if (!passphrase) throw new Error('This key is protected by a passphrase; enter it to continue')
+    if (!passphrase) throw new Error('Khóa này được bảo vệ bằng passphrase; hãy nhập passphrase để tiếp tục')
     parsed = utils.parseKey(text, passphrase)
-    if (parsed instanceof Error) throw new Error('Wrong passphrase for this key')
+    if (parsed instanceof Error) throw new Error('Sai passphrase cho khóa này')
   }
   const key = Array.isArray(parsed) ? parsed[0] : parsed
-  if (!key || key instanceof Error) throw new Error('This is not a valid private key file')
-  if (!key.isPrivateKey()) throw new Error('This is a public key; a private key is needed to sign in')
+  if (!key || key instanceof Error) throw new Error('Đây không phải file khóa riêng tư hợp lệ')
+  if (!key.isPrivateKey()) throw new Error('Đây là khóa công khai; cần khóa riêng tư để đăng nhập')
   return {
     type: key.type,
     encrypted,

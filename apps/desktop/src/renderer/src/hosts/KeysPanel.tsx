@@ -33,8 +33,8 @@ export function KeysPanel({ keys, onChanged, onBack }: { keys: KeySummary[]; onC
   return (
     <div className="form wide">
       <div className="row"><h2 className="grow">Keys in the vault</h2><button className="secondary" onClick={onBack}>Back</button></div>
-      <p className="hint">Keys stored here are encrypted and follow your vault to every device. The private key is never shown again.</p>
-      {keys.length === 0 && <p className="empty">No keys yet.</p>}
+      <p className="hint">Các khóa lưu ở đây được mã hóa và đi theo vault sang mọi thiết bị. Khóa riêng tư sẽ không bao giờ được hiển thị lại.</p>
+      {keys.length === 0 && <p className="empty">Chưa có khóa nào.</p>}
       {keys.map((k) => (
         <div key={k.id} className="hostrow">
           <div className="info"><strong>{k.name}</strong><span className="sub">{k.fingerprint ?? ''}</span></div>

@@ -125,6 +125,16 @@ Không cần tài khoản hay Client ID. Một file `.json` duy nhất chứa c�
 - **An toàn**: file sai MAC, thuộc vault khác hoặc không phải bundle thì **không bao giờ bị ghi đè**, app dừng và báo rõ. Bản của thiết bị khác không qua được kiểm MAC bị bỏ qua và không được chép tiếp.
 - **Giới hạn**: hai máy ghi cùng lúc thì một bản có thể bị ghi đè, nhưng máy kia sẽ thấy bản của mình vắng mặt và ghi lại nên hội tụ sau vài vòng. Nếu dịch vụ đồng bộ thư mục tạo bản "conflicted copy" thì app không đọc các bản đó. Chưa thử với iCloud/Dropbox thật, chỉ thử với hai instance dùng chung một thư mục.
 
+## Tự động backup khi thêm host (`apps/desktop/src/main/auto-backup-service.ts`)
+
+Mỗi lần tập host của vault xuất hiện thêm một id mới (thêm ở máy này hoặc host đến từ thiết bị khác qua sync), app ghi một bundle như "Save backup…" vào thư mục backup, sau 1 giây debounce. Mặc định **bật**, thư mục là `<userData>/backups`, đổi được trong Settings (nên chọn thư mục nằm ngoài máy, ví dụ iCloud Drive). Tên file `mymius-backup-YYYYMMDD-HHMMSS-xxxx.json`, quyền 0600, chỉ giữ 20 bản mới nhất và **chỉ xóa file khớp đúng mẫu tên này**. Mở khóa vault không tính là thêm host; sửa host cũng không. Cấu hình lưu trong vùng niêm phong của vault. Lỗi ghi (thư mục không ghi được, đầy đĩa) hiện ngay trên thẻ Auto backup và không làm hỏng thao tác thêm host.
+
+Giới hạn: bundle chứa toàn bộ vault nên mỗi bản có dung lượng bằng cả vault; backup chỉ kích hoạt khi *thêm* host, không phải khi xóa hay sửa (nên dùng Save backup… cho các mốc khác).
+
+## Ngôn ngữ
+
+Mô tả, hướng dẫn, thông báo trạng thái và lỗi hiển thị cho người dùng đã được dịch sang tiếng Việt; nút bấm, tiêu đề, nhãn ô nhập, `aria-label` và `data-testid` giữ tiếng Anh. Chuỗi nằm rải trong mã (chưa có lớp i18n), gồm cả thông báo lỗi ở `packages/*` và `apps/desktop/src/main`. Nếu sau này cần nhiều ngôn ngữ, bước đầu là gom chúng vào một bảng thông điệp.
+
 ## Giao diện
 
 Settings → Appearance: theo hệ thống / sáng / tối. Lựa chọn lưu trong `localStorage` của renderer, áp dụng bằng `data-theme` trên `<html>`, đồng bộ `nativeTheme` (hộp thoại, menu) và bảng màu terminal xterm. Màu trạng thái (badge, cảnh báo, nguy hiểm) đều là biến CSS có bản tối.

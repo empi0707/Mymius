@@ -57,7 +57,7 @@ describe('lifecycle', () => {
   it('will not overwrite an existing vault', async () => {
     const a = store()
     await a.create(PASS)
-    await expect(store().create('another long passphrase')).rejects.toThrow(/already exists/)
+    await expect(store().create('another long passphrase')).rejects.toThrow(/đã tồn tại/)
   })
 
   it('the vault file is private to the user', async () => {
@@ -301,7 +301,7 @@ describe('syncing between devices', () => {
 
   it('bootstrap will not replace an existing vault', async () => {
     const { a, b } = await setup()
-    await expect(b.bootstrap(a.snapshot())).rejects.toThrow(/already exists/)
+    await expect(b.bootstrap(a.snapshot())).rejects.toThrow(/đã tồn tại/)
   })
 })
 
@@ -334,7 +334,7 @@ describe('host profiles', () => {
     const stored = parseHostProfile(host())
     expect(applyHostInput(stored, input({ auth: { type: 'password', password: 'new' } })).auth).toEqual({ type: 'password', password: 'new' })
     const agentHost = parseHostProfile(host({ auth: { type: 'agent' } }))
-    expect(() => applyHostInput(agentHost, input({ auth: { type: 'password' } }))).toThrow(/password/i)
+    expect(() => applyHostInput(agentHost, input({ auth: { type: 'password' } }))).toThrow(/mật khẩu/i)
     expect(() => applyHostInput(undefined, input({ auth: { type: 'password', password: '' } }))).toThrow()
   })
 

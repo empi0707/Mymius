@@ -122,7 +122,7 @@ export async function authorize(cfg: OAuthConfig, opts: AuthorizeOptions): Promi
     })
     if (status !== 200 || !body.access_token) throw new OAuthDeniedError(body.error_description ?? body.error ?? `HTTP ${status}`)
     if (!body.refresh_token) {
-      throw new Error('Google did not return a long-lived sign-in. Remove this app under your Google account\'s third-party access, then try again.')
+      throw new Error('Google không trả về phiên đăng nhập dài hạn. Hãy gỡ ứng dụng này trong phần truy cập của bên thứ ba ở tài khoản Google, rồi thử lại.')
     }
     const now = (opts.now ?? Date.now)()
     const email = emailFromIdToken(body.id_token)

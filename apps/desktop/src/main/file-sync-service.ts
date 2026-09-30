@@ -21,15 +21,15 @@ const SUGGESTED = 'mymius-sync.json'
 const friendly = (err: unknown): string => (err instanceof Error ? err.message : String(err))
 
 function explain(err: unknown): string {
-  if (err instanceof VaultMismatchError) return 'That file belongs to a different vault, so it was left alone.'
+  if (err instanceof VaultMismatchError) return 'File đó thuộc về một vault khác nên đã được để yên.'
   if (err instanceof SyncFormatError) {
-    return err.reason === 'tampered' ? 'That file failed its integrity check (it was altered or damaged), so it was left alone.'
-      : err.reason === 'too-large' ? 'That file is too large to be a Mymius sync file.'
-      : 'That is not a Mymius sync file.'
+    return err.reason === 'tampered' ? 'File đó không qua được kiểm tra toàn vẹn (đã bị sửa hoặc hỏng) nên đã được để yên.'
+      : err.reason === 'too-large' ? 'File đó quá lớn để là file đồng bộ của Mymius.'
+      : 'Đây không phải file đồng bộ của Mymius.'
   }
   const code = (err as NodeJS.ErrnoException | undefined)?.code
-  if (code === 'ENOENT') return 'The file could not be found.'
-  if (code === 'EACCES' || code === 'EPERM') return 'This app is not allowed to use that file.'
+  if (code === 'ENOENT') return 'Không tìm thấy file.'
+  if (code === 'EACCES' || code === 'EPERM') return 'Ứng dụng không được phép dùng file đó.'
   return friendly(err)
 }
 
@@ -127,7 +127,7 @@ export class FileSyncService {
           if (existing) await applyBundle(this.store, existing.bundle)
           this.lastError = undefined
         } catch (err) {
-          this.lastError = `The backup could not be merged: ${explain(err)}`
+          this.lastError = `Không gộp được backup: ${explain(err)}`
         }
         this.phase = 'off'
         this.publish()
@@ -160,7 +160,7 @@ export class FileSyncService {
   }
 
   async syncNow(): Promise<Result> {
-    if (!this.linked) return { ok: false, error: 'No sync file is set up' }
+    if (!this.linked) return { ok: false, error: 'Chưa thiết lập file đồng bộ' }
     if (this.running) { this.again = true; await this.running; return this.result() }
     this.running = this.round().finally(() => { this.running = undefined })
     await this.running
@@ -190,14 +190,17 @@ export class FileSyncService {
         this.devices = existing.bundle.devices.filter((d) => d.deviceId !== this.store.deviceId).length
         if (r.ignored) this.lastError = undefined
       }
-      const current = existing !== undefined && ownFingerprint(existing.bundle, this.store.deviceId) === this.store.recordsFingerprint() &&
+      // Everything from here to building the file is synchronous, so `fp` is exactly what the file will hold. A
+      // host added while the file is being written must not be mistaken for something already written.
+      const fp = this.store.recordsFingerprint()
+      const current = existing !== undefined && ownFingerprint(existing.bundle, this.store.deviceId) === fp &&
         existing.bundle.meta.meta.rev >= this.store.metaRev
       if (current) {
         this.stamp = existing.stamp
       } else {
         this.stamp = await writeAtomic(file, JSON.stringify(buildBundle(this.store, existing?.bundle), null, 2))
       }
-      this.lastFingerprint = this.store.recordsFingerprint()
+      this.lastFingerprint = fp
       this.lastSyncAt = Date.now()
       this.lastError = undefined
       this.phase = 'idle'
@@ -214,7 +217,7 @@ export class FileSyncService {
 
   /** A one-off copy of the vault as a .json file. It is encrypted, so it is safe to keep anywhere. */
   async exportBackup(): Promise<Result> {
-    if ((await this.store.state()) !== 'unlocked') return { ok: false, error: 'Unlock the vault first' }
+    if ((await this.store.state()) !== 'unlocked') return { ok: false, error: 'Hãy mở khóa vault trước' }
     const file = await this.host.pick('save', SUGGESTED)
     if (!file) return { ok: false, error: '' }
     try {
@@ -232,8 +235,8 @@ export class FileSyncService {
    */
   async importBackup(): Promise<Result> {
     const state = await this.store.state().catch(() => undefined)
-    if (!state) return { ok: false, error: 'The vault file is damaged' }
-    if (state === 'locked') return { ok: false, error: 'Unlock the vault first' }
+    if (!state) return { ok: false, error: 'File vault bị hỏng' }
+    if (state === 'locked') return { ok: false, error: 'Hãy mở khóa vault trước' }
     const file = await this.host.pick('open')
     if (!file) return { ok: false, error: '' }
     try {
@@ -257,10 +260,10 @@ export class FileSyncService {
    */
   async link(mode: 'create' | 'existing'): Promise<Result> {
     const state = await this.store.state().catch(() => undefined)
-    if (!state) return { ok: false, error: 'The vault file is damaged' }
-    if (state === 'locked') return { ok: false, error: 'Unlock the vault first' }
-    if (mode === 'create' && state !== 'unlocked') return { ok: false, error: 'Create the vault first' }
-    if (this.linked) return { ok: false, error: 'Stop using the current sync file first' }
+    if (!state) return { ok: false, error: 'File vault bị hỏng' }
+    if (state === 'locked') return { ok: false, error: 'Hãy mở khóa vault trước' }
+    if (mode === 'create' && state !== 'unlocked') return { ok: false, error: 'Hãy tạo vault trước' }
+    if (this.linked) return { ok: false, error: 'Hãy dừng dùng file đồng bộ hiện tại trước' }
     const file = await this.host.pick(mode === 'create' ? 'save' : 'open', SUGGESTED)
     if (!file) return { ok: false, error: '' }
     try {

@@ -19,7 +19,7 @@ export interface KdfTuning {
 export const DEFAULT_KDF: KdfTuning = { memoryKiB: 64 * 1024, iterations: 3, parallelism: 1 }
 
 export class VaultAuthError extends Error {
-  constructor(message = 'Wrong passphrase or corrupted vault') {
+  constructor(message = 'Sai passphrase hoặc vault bị hỏng') {
     super(message)
     this.name = 'VaultAuthError'
   }

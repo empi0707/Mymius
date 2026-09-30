@@ -75,7 +75,7 @@ export function formatRecoveryKey(raw: Buffer): string {
 
 export function parseRecoveryKey(text: string): Buffer {
   const hex = text.replace(/[\s-]/g, '').toLowerCase()
-  if (!/^[0-9a-f]{64}$/.test(hex)) throw new VaultAuthError('Malformed recovery key')
+  if (!/^[0-9a-f]{64}$/.test(hex)) throw new VaultAuthError('Recovery key sai định dạng')
   return Buffer.from(hex, 'hex')
 }
 

@@ -61,7 +61,7 @@ const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object
 const CONTROL = /[\u0000-\u001f\u007f]/
 
 function str(v: unknown, what: string, opts: { min?: number; max: number; multiline?: boolean } ): string {
-  if (typeof v !== 'string') throw new Error(`${what} must be text`)
+  if (typeof v !== 'string') throw new Error(`${what} phải là văn bản`)
   if (v.length < (opts.min ?? 0)) throw new Error(`${what} is required`)
   if (v.length > opts.max) throw new Error(`${what} is too long`)
   if (opts.multiline ? /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(v) : CONTROL.test(v)) {
@@ -81,7 +81,7 @@ export function validHostname(host: string): boolean {
 }
 
 export function parseHostAuth(a: unknown): HostAuth {
-  if (!isObj(a)) throw new Error('Choose how to sign in')
+  if (!isObj(a)) throw new Error('Hãy chọn cách đăng nhập')
   switch (a.type) {
     case 'password':
       return { type: 'password', password: str(a.password, 'Password', { max: 4096 }) }
@@ -94,17 +94,17 @@ export function parseHostAuth(a: unknown): HostAuth {
     case 'agent':
       return { type: 'agent' }
     default:
-      throw new Error('Choose how to sign in')
+      throw new Error('Hãy chọn cách đăng nhập')
   }
 }
 
 function parseCommon(x: unknown): Omit<HostProfile, 'auth'> {
-  if (!isObj(x)) throw new Error('Invalid host')
+  if (!isObj(x)) throw new Error('Host không hợp lệ')
   const host = str(x.host, 'Host', { min: 1, max: 255 }).trim()
-  if (!validHostname(host)) throw new Error('Enter a valid host name or address')
+  if (!validHostname(host)) throw new Error('Hãy nhập tên host hoặc địa chỉ hợp lệ')
   const port = x.port === undefined ? 22 : x.port
   if (typeof port !== 'number' || !Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new Error('Port must be between 1 and 65535')
+    throw new Error('Port phải nằm trong khoảng 1 đến 65535')
   }
   const group = optStr(x.group, 'Group', 100)?.trim()
   const jumpHostId = optStr(x.jumpHostId, 'Jump host', 100)
@@ -130,7 +130,7 @@ export function parseHostProfile(x: unknown): HostProfile {
 }
 
 export function parseKeyRecord(x: unknown): KeyRecord {
-  if (!isObj(x)) throw new Error('Invalid key')
+  if (!isObj(x)) throw new Error('Khóa không hợp lệ')
   const privateKey = str(x.privateKey, 'Private key', { min: 1, max: 64 * 1024, multiline: true })
   const passphrase = optStr(x.passphrase, 'Passphrase', 4096)
   const fingerprint = optStr(x.fingerprint, 'Fingerprint', 200)
@@ -148,11 +148,11 @@ export function parseKeyRecord(x: unknown): KeyRecord {
  * (it only ever receives redacted hosts, so an unchanged password arrives as "missing").
  */
 export function applyHostInput(existing: HostProfile | undefined, raw: unknown, now = Date.now()): HostProfile {
-  if (!isObj(raw) || !isObj(raw.auth)) throw new Error('Invalid host')
+  if (!isObj(raw) || !isObj(raw.auth)) throw new Error('Host không hợp lệ')
   const input = raw as unknown as HostInput
   let auth: unknown = input.auth
   if (input.auth.type === 'password' && (input.auth.password === undefined || input.auth.password === '')) {
-    if (existing?.auth.type !== 'password') throw new Error('Enter a password')
+    if (existing?.auth.type !== 'password') throw new Error('Hãy nhập mật khẩu')
     auth = existing.auth
   } else if (input.auth.type === 'keyFile' && input.auth.passphrase === undefined) {
     // undefined = keep; '' = explicitly none

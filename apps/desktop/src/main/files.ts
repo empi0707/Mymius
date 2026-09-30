@@ -66,11 +66,11 @@ interface EditRecord {
 export function friendlyError(err: unknown): string {
   const e = err as { code?: unknown; message?: string } | null
   switch (e?.code) {
-    case 'ENOENT': case 2: return 'Not found'
-    case 'EACCES': case 'EPERM': case 3: return 'Permission denied'
-    case 'ENOTDIR': return 'Not a folder'
-    case 'EEXIST': return 'Already exists'
-    case 'ENOSPC': return 'No space left on the device'
+    case 'ENOENT': case 2: return 'Không tìm thấy'
+    case 'EACCES': case 'EPERM': case 3: return 'Không có quyền truy cập'
+    case 'ENOTDIR': return 'Không phải thư mục'
+    case 'EEXIST': return 'Đã tồn tại'
+    case 'ENOSPC': return 'Thiết bị đã hết dung lượng'
   }
   return e?.message || String(err)
 }
@@ -84,12 +84,12 @@ async function attempt<T extends object>(fn: () => Promise<T> | T): Promise<Resu
 }
 
 function checkPath(p: unknown): string {
-  if (typeof p !== 'string' || p.length === 0 || p.length > MAX_PATH_LENGTH || p.includes('\0')) throw new Error('Invalid path')
+  if (typeof p !== 'string' || p.length === 0 || p.length > MAX_PATH_LENGTH || p.includes('\0')) throw new Error('Đường dẫn không hợp lệ')
   return p
 }
 
 function checkPaths(ps: unknown): string[] {
-  if (!Array.isArray(ps) || ps.length === 0 || ps.length > MAX_PATHS) throw new Error('Nothing selected')
+  if (!Array.isArray(ps) || ps.length === 0 || ps.length > MAX_PATHS) throw new Error('Chưa chọn gì')
   return ps.map(checkPath)
 }
 
@@ -138,9 +138,9 @@ export class FilesService {
 
   private session(owner: number, id: unknown): Session {
     const s = typeof id === 'string' ? this.sessions.get(id) : undefined
-    if (!s || (s.owner !== null && s.owner !== owner)) throw new Error('That connection is no longer open')
+    if (!s || (s.owner !== null && s.owner !== owner)) throw new Error('Kết nối đó không còn mở nữa')
     if (s.provider instanceof SftpProvider && s.provider.closed) {
-      throw new Error('The connection was lost. Choose the host again to reconnect.')
+      throw new Error('Đã mất kết nối. Hãy chọn lại host để kết nối lại.')
     }
     return s
   }
@@ -167,7 +167,7 @@ export class FilesService {
 
   connect(owner: number, hostId: unknown): Promise<Result<{ session: FsSessionInfo }>> {
     return attempt(async () => {
-      if (typeof hostId !== 'string') throw new Error('Invalid host')
+      if (typeof hostId !== 'string') throw new Error('Host không hợp lệ')
       const meta = await this.saved.resolve(hostId)
       const lease = await this.broker.acquireSaved(hostId)
       try {
@@ -202,9 +202,9 @@ export class FilesService {
       dir = p.normalize(dir)
       // Follow a link to a folder so we list the folder, but show the path the user asked for.
       let st = await s.provider.stat(dir)
-      if (!st) throw new Error('Folder not found')
+      if (!st) throw new Error('Không tìm thấy thư mục')
       if (st.kind === 'symlink') st = await this.followLink(s.provider, dir)
-      if (!st || st.kind !== 'directory') throw new Error('Not a folder')
+      if (!st || st.kind !== 'directory') throw new Error('Không phải thư mục')
 
       const raw = await s.provider.list(dir)
       const truncated = raw.length > MAX_ENTRIES
@@ -248,7 +248,7 @@ export class FilesService {
       const bad = validateName(typeof name === 'string' ? name : '')
       if (bad) throw new Error(bad)
       const target = s.provider.path.join(checkPath(dir), name as string)
-      if (await s.provider.stat(target)) throw new Error('Something with that name already exists')
+      if (await s.provider.stat(target)) throw new Error('Đã có mục khác trùng tên')
       await s.provider.mkdir(target)
       return {}
     })
@@ -262,7 +262,7 @@ export class FilesService {
       const source = checkPath(from)
       const target = s.provider.path.join(s.provider.path.dirname(source), newName as string)
       if (target === source) return {}
-      if (await s.provider.stat(target)) throw new Error('Something with that name already exists')
+      if (await s.provider.stat(target)) throw new Error('Đã có mục khác trùng tên')
       await s.provider.rename(source, target, { overwrite: false })
       return {}
     })
@@ -343,26 +343,26 @@ export class FilesService {
       const mode = r.mode === 'move' ? 'move' : 'copy'
       const policy = POLICIES.includes(r.policy as ConflictPolicy) ? (r.policy as ConflictPolicy) : 'skip'
       const dst = await to.provider.stat(toDir)
-      if (!dst || dst.kind !== 'directory') throw new Error('The destination is not a folder')
+      if (!dst || dst.kind !== 'directory') throw new Error('Đích đến không phải là thư mục')
 
       let paths = checkPaths(r.paths)
       const sameFs = from.provider.id === to.provider.id && from.provider.kind === to.provider.kind
       // Moving something into the folder it is already in changes nothing.
       if (mode === 'move' && sameFs) paths = paths.filter((p) => from.provider.path.dirname(p) !== from.provider.path.normalize(toDir))
-      if (paths.length === 0) return { jobId: this.startJob(owner, mode, 'Nothing to do', async () => ({ summary: 'Already there', errors: [], cancelled: false })) }
+      if (paths.length === 0) return { jobId: this.startJob(owner, mode, 'Không có gì để làm', async () => ({ summary: 'Đã ở đúng chỗ', errors: [], cancelled: false })) }
 
-      const label = `${mode === 'move' ? 'Moving' : 'Copying'} ${paths.length === 1 ? from.provider.path.basename(paths[0]!) : `${paths.length} items`} to ${to.info.label}`
+      const label = `${mode === 'move' ? 'Đang chuyển' : 'Đang chép'} ${paths.length === 1 ? from.provider.path.basename(paths[0]!) : `${paths.length} mục`} tới ${to.info.label}`
       return {
         jobId: this.startJob(owner, mode, label, async ({ signal, update }) => {
           const res = await runTransfer(
             { src: from.provider, srcPaths: paths, dst: to.provider, dstDir: toDir, policy, move: mode === 'move' },
             { signal, onProgress: (p) => update({ ...p }) }
           )
-          const parts = [`${res.copied} file${res.copied === 1 ? '' : 's'} ${mode === 'move' ? 'moved' : 'copied'}`]
-          if (res.renamed) parts.push(`${res.renamed} item${res.renamed === 1 ? '' : 's'} moved`)
-          if (res.skipped) parts.push(`${res.skipped} skipped`)
-          if (res.ignored.length) parts.push(`${res.ignored.length} link${res.ignored.length === 1 ? '' : 's'} ignored`)
-          if (res.errors.length) parts.push(`${res.errors.length} failed`)
+          const parts = [`${res.copied} file đã ${mode === 'move' ? 'chuyển' : 'chép'}`]
+          if (res.renamed) parts.push(`${res.renamed} mục đã chuyển`)
+          if (res.skipped) parts.push(`${res.skipped} bỏ qua`)
+          if (res.ignored.length) parts.push(`${res.ignored.length} liên kết bị bỏ qua`)
+          if (res.errors.length) parts.push(`${res.errors.length} thất bại`)
           return { summary: parts.join(', '), errors: res.errors, cancelled: res.cancelled }
         })
       }
@@ -380,7 +380,7 @@ export class FilesService {
         const r = await deletePaths(s.provider, list, { ...trash, signal })
         update({ filesDone: r.deleted })
         return {
-          summary: `${r.deleted} deleted${s.info.kind === 'local' ? ' (moved to the trash)' : ''}${r.errors.length ? `, ${r.errors.length} failed` : ''}`,
+          summary: `${r.deleted} đã xóa${s.info.kind === 'local' ? ' (đã chuyển vào thùng rác)' : ''}${r.errors.length ? `, ${r.errors.length} thất bại` : ''}`,
           errors: r.errors,
           cancelled: r.cancelled
         }
@@ -395,7 +395,7 @@ export class FilesService {
     const s = this.session(owner, e.sessionId)
     const root = s.provider.path.normalize(checkPath(e.path))
     const st = await s.provider.stat(root)
-    if (!st || st.kind !== 'directory') throw new Error(`${root} is not a folder`)
+    if (!st || st.kind !== 'directory') throw new Error(`${root} không phải là thư mục`)
     return { provider: s.provider, root, label: s.info.label }
   }
 
@@ -409,7 +409,7 @@ export class FilesService {
         const rel = p.relative(left.root, right.root)
         const inside = (x: string): boolean => x === '' || (!x.startsWith('..') && !p.isAbsolute(x))
         if (inside(rel) || inside(p.relative(right.root, left.root))) {
-          throw new Error('The two folders are the same, or one is inside the other. Pick two separate folders.')
+          throw new Error('Hai thư mục trùng nhau, hoặc một thư mục nằm trong thư mục kia. Hãy chọn hai thư mục tách biệt.')
         }
       }
       const ignore = Array.isArray(r.ignore) ? r.ignore.filter((x): x is string => typeof x === 'string' && x.length < 200).slice(0, 100) : []
@@ -437,8 +437,8 @@ export class FilesService {
   private planFor(owner: number, req: unknown): { cmp: Comparison; plan: SyncPlan; mode: SyncMode; deleteExtras: boolean; overrides: Map<string, Direction> } {
     const r = (req ?? {}) as Partial<SyncPlanRequest>
     const cmp = typeof r.compareId === 'string' ? this.comparisons.get(r.compareId) : undefined
-    if (!cmp || cmp.owner !== owner) throw new Error('This comparison has expired. Compare again.')
-    if (!MODES.includes(r.mode as SyncMode)) throw new Error('Choose how to sync')
+    if (!cmp || cmp.owner !== owner) throw new Error('Kết quả so sánh đã hết hạn. Hãy so sánh lại.')
+    if (!MODES.includes(r.mode as SyncMode)) throw new Error('Hãy chọn cách đồng bộ')
     const overrides = new Map<string, Direction>()
     for (const [rel, dir] of Object.entries(r.overrides ?? {}).slice(0, MAX_SYNC_ITEMS)) {
       if (DIRECTIONS.includes(dir as SyncDirection)) overrides.set(rel, dir as Direction)
@@ -460,7 +460,7 @@ export class FilesService {
   syncRun(owner: number, req: unknown): Promise<Result<{ jobId: string }>> {
     return attempt(async () => {
       const { cmp, plan } = this.planFor(owner, req)
-      if (plan.actions.length === 0) throw new Error('Nothing to sync')
+      if (plan.actions.length === 0) throw new Error('Không có gì để đồng bộ')
       const jobId = this.startJob(owner, 'sync', `Syncing ${cmp.left.root} and ${cmp.right.root}`, async ({ signal, update }) => {
         update({ filesTotal: plan.actions.length, bytesTotal: plan.summary.bytes })
         const report = await executePlan(plan, cmp.left, cmp.right, {
@@ -468,8 +468,8 @@ export class FilesService {
           deleteMode: 'trash-folder', // deletions stay recoverable in .mymius-trash
           onProgress: (p) => update({ filesDone: p.done, bytesDone: p.bytesCopied, ...(p.current ? { current: p.current.rel } : {}) })
         })
-        const errors = report.results.filter((x) => !x.ok).map((x) => ({ path: x.action.rel, message: x.error ?? 'Failed' }))
-        return { summary: `${report.okCount} of ${report.results.length} changes applied${errors.length ? `, ${errors.length} failed` : ''}`, errors, cancelled: report.cancelled }
+        const errors = report.results.filter((x) => !x.ok).map((x) => ({ path: x.action.rel, message: x.error ?? 'Thất bại' }))
+        return { summary: `${report.okCount}/${report.results.length} thay đổi đã áp dụng${errors.length ? `, ${errors.length} thất bại` : ''}`, errors, cancelled: report.cancelled }
       })
       return { jobId }
     })
@@ -491,10 +491,10 @@ export class FilesService {
   }
 
   private async editOpen(owner: number, s: Session, remotePath: string): Promise<void> {
-    if (!s.info.hostId) throw new Error('Cannot edit here')
+    if (!s.info.hostId) throw new Error('Không thể sửa ở đây')
     const st = await s.provider.stat(remotePath)
-    if (!st || st.kind !== 'file') throw new Error('Only files can be edited')
-    if (st.size > 50 * 1024 * 1024) throw new Error('That file is larger than 50 MB; download it instead')
+    if (!st || st.kind !== 'file') throw new Error('Chỉ có thể sửa file')
+    if (st.size > 50 * 1024 * 1024) throw new Error('File lớn hơn 50 MB; hãy tải xuống thay vì sửa')
 
     // Its own connection lease, so closing the file pane does not cut off a file being edited.
     const lease = await this.broker.acquireSaved(s.info.hostId)

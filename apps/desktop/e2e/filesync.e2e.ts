@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Page } from 'playwright-core'
@@ -17,7 +17,7 @@ let one: Device, two: Device
 const vis = (sel: string) => `.section:not([hidden]) ${sel}`
 const launchDevice = async (name: string, path: string, profile?: string): Promise<Device> => {
   const p = profile ?? join(tmp, name)
-  return { ...(await H.launch(p, { MYMIUS_E2E_FILE_PICK: path })), profile: p }
+  return { ...(await H.launch(p, { MYMIUS_E2E_FILE_PICK: path, MYMIUS_E2E_BACKUP_DIR: join(tmp, 'auto-backups') })), profile: p }
 }
 const until = async (fn: () => boolean | Promise<boolean>, what: string, ms = 15_000) => {
   const end = Date.now() + ms
@@ -45,7 +45,7 @@ describe('device one: creating a sync file', () => {
     await H.addPasswordHost(one.page, { name: 'shared-box', port: 2222, username: 'root', password: 'pw-only-on-servers' })
     await H.goTo(one.page, 'Settings')
     await one.page.click('button:has-text("Create sync file")')
-    await one.page.locator('[data-testid=filesync-phase]:has-text("up to date")').waitFor({ timeout: 15_000 })
+    await one.page.locator('[data-testid=filesync-phase]:has-text("đã cập nhật")').waitFor({ timeout: 15_000 })
     expect(await one.page.textContent('[data-testid=filesync-path]')).toBe(syncFile)
   })
 
@@ -65,7 +65,7 @@ describe('device two: restoring from the file, then staying in step', () => {
     await two.page.waitForSelector('h2:has-text("Unlock your vault")', { timeout: 20_000 })
     await two.page.fill(vis('input[name=passphrase]'), 'not the passphrase')
     await two.page.click('button:has-text("Unlock")')
-    await two.page.waitForSelector('[role=alert]:has-text("Wrong passphrase")')
+    await two.page.waitForSelector('[role=alert]:has-text("Sai passphrase")')
     await two.page.fill(vis('input[name=passphrase]'), PASS)
     await two.page.click('button:has-text("Unlock")')
     await until(async () => (await H.hostNames(two.page)).includes('shared-box'), 'the host from device one to appear')
@@ -93,10 +93,10 @@ describe('backup and restore', () => {
     await one.page.click('button:has-text("Unlock")')
     await H.goTo(one.page, 'Settings')
     await one.page.click('button:has-text("Save backup")')
-    await one.page.locator('[data-testid=filesync-message]:has-text("Backup saved")').waitFor()
+    await one.page.locator('[data-testid=filesync-message]:has-text("Đã lưu backup")').waitFor()
     expect(JSON.parse(await readFile(backup, 'utf8')).kind).toBe('mymius-sync-bundle')
     await one.page.click('button:has-text("Restore from backup")')
-    await one.page.locator('[data-testid=filesync-message]:has-text("merged")').waitFor()
+    await one.page.locator('[data-testid=filesync-message]:has-text("Đã gộp")').waitFor()
   })
 
   it('explains a file that is not a backup', async () => {
@@ -108,7 +108,42 @@ describe('backup and restore', () => {
     await one.page.click('button:has-text("Unlock")')
     await H.goTo(one.page, 'Settings')
     await one.page.click('button:has-text("Restore from backup")')
-    await one.page.waitForSelector('[data-testid=filesync-message]:has-text("not a Mymius sync file")')
+    await one.page.waitForSelector('[data-testid=filesync-message]:has-text("không phải file đồng bộ của Mymius")')
+  })
+})
+
+const autoBackups = async () => (await readdir(join(tmp, 'auto-backups')).catch(() => [] as string[])).filter((n) => n.endsWith('.json'))
+
+describe('automatic backup when a host is added', () => {
+  it('shows what it does, and a new host produces one backup that holds nothing readable', async () => {
+    await H.goTo(one.page, 'Settings')
+    await one.page.waitForSelector('[data-testid=autobackup-card]')
+    expect(await one.page.textContent('[data-testid=autobackup-dir]')).toContain('backups')
+    await one.page.click('[data-testid=autobackup-card] button:has-text("Choose folder")')
+    await one.page.waitForFunction(() => document.querySelector('[data-testid=autobackup-dir]')?.textContent?.includes('auto-backups'))
+    const before = (await autoBackups()).length
+    await H.goTo(one.page, 'Hosts')
+    await H.addPasswordHost(one.page, { name: 'brand-new-host', port: 2222, username: 'root', password: 'pw-auto-backup' })
+    await until(async () => (await autoBackups()).length === before + 1, 'the automatic backup')
+    const files = await autoBackups()
+    const raw = await readFile(join(tmp, 'auto-backups', files.sort().at(-1)!), 'utf8')
+    expect(JSON.parse(raw).kind).toBe('mymius-sync-bundle')
+    for (const secret of ['brand-new-host', 'pw-auto-backup']) expect(raw).not.toContain(secret)
+    await H.goTo(one.page, 'Settings')
+    await one.page.locator('[data-testid=autobackup-line]:has-text("Backup gần nhất")').waitFor()
+  })
+
+  it('can be turned off, and then a new host makes no backup', async () => {
+    await one.page.click('input[name=autobackup]')
+    await one.page.waitForSelector('input[name=autobackup]:not(:checked)')
+    const before = (await autoBackups()).length
+    await H.goTo(one.page, 'Hosts')
+    await H.addPasswordHost(one.page, { name: 'quiet-host', port: 2222, username: 'root', password: 'x' })
+    await new Promise((r) => setTimeout(r, 1200))
+    expect((await autoBackups()).length).toBe(before)
+    await H.goTo(one.page, 'Settings')
+    await one.page.click('input[name=autobackup]')
+    await one.page.waitForSelector('input[name=autobackup]:checked')
   })
 })
 

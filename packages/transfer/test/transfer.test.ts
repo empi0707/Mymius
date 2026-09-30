@@ -263,7 +263,7 @@ describe('delete', () => {
 })
 
 describe('validateName', () => {
-  it.each([['ok.txt', null], ['', 'Enter a name'], ['  ', 'Enter a name'], ['.', 'not allowed'], ['..', 'not allowed'], ['a/b', 'slashes'], ['a\\b', 'slashes'], ['a\nb', 'slashes'], ['x'.repeat(256), 'too long']])('%j', (name, err) => {
+  it.each([['ok.txt', null], ['', 'Hãy nhập tên'], ['  ', 'Hãy nhập tên'], ['.', 'không được phép'], ['..', 'không được phép'], ['a/b', 'gạch chéo'], ['a\\b', 'gạch chéo'], ['a\nb', 'gạch chéo'], ['x'.repeat(256), 'quá dài']])('%j', (name, err) => {
     const got = validateName(name)
     if (err === null) expect(got).toBeNull()
     else expect(got).toContain(err)

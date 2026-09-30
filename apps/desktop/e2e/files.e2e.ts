@@ -100,7 +100,7 @@ describe('browsing the local disk', () => {
     await pane(0).locator('.crumbs').dblclick()
     await page.fill('[data-testid=pane-0] input[aria-label=Path]', join(home, 'nope'))
     await key('Enter')
-    await pane(0).locator('[role=alert]:has-text("Folder not found")').waitFor()
+    await pane(0).locator('[role=alert]:has-text("Không tìm thấy thư mục")').waitFor()
     await pane(0).locator('select').selectOption({ label: 'Home' })
     await expect.poll(() => names(0)).toContain('photo.jpg')
   })
@@ -143,7 +143,7 @@ describe('working with a server', () => {
   it('F5 copies the selection to the other pane, with progress and a summary', async () => {
     await row(0, 'photo.jpg').click()
     await key('F5')
-    expect(await waitJob('copy')).toContain('1 file copied')
+    expect(await waitJob('copy')).toContain('1 file đã chép')
     await expect.poll(() => names(1)).toContain('photo.jpg')
     expect(await readFile(join(remote, 'photo.jpg'), 'utf8')).toBe('JPEGDATA')
     await dismissJobs()
@@ -152,7 +152,7 @@ describe('working with a server', () => {
   it('copying something that exists asks what to do; "Keep both" leaves both', async () => {
     await row(0, 'photo.jpg').click()
     await key('F5')
-    await page.waitForSelector('[role=dialog]:has-text("already exists")')
+    await page.waitForSelector('[role=dialog]:has-text("đã tồn tại")')
     await page.click('[role=dialog] button:has-text("Keep both")')
     await waitJob('copy')
     await expect.poll(() => names(1)).toEqual(expect.arrayContaining(['photo.jpg', 'photo (2).jpg']))
@@ -219,14 +219,14 @@ describe('creating, renaming and deleting', () => {
     await key('F2')
     await page.fill('[role=dialog] input[aria-label=Name]', 'a/b')
     await key('Enter')
-    await page.waitForSelector('[role=alert]:has-text("slashes")')
+    await page.waitForSelector('[role=alert]:has-text("gạch chéo")')
     expect(await names(1)).toContain('renamed-dir')
   })
 
   it('deleting on a server says it is permanent, and is', async () => {
     await row(1, 'renamed-dir').click()
     await key('F8')
-    await page.waitForSelector('[role=dialog]:has-text("cannot be recovered")')
+    await page.waitForSelector('[role=dialog]:has-text("không lấy lại được")')
     await page.click('[role=dialog] button:has-text("Delete permanently")')
     await waitJob('delete')
     await expect.poll(() => names(1)).not.toContain('renamed-dir')
@@ -242,7 +242,7 @@ describe('creating, renaming and deleting', () => {
     await page.click('[role=dialog] button:has-text("Keep")')
     expect(await names(0)).toContain('junk.txt')
     await key('Delete')
-    await page.waitForSelector('[role=dialog]:has-text("restored")')
+    await page.waitForSelector('[role=dialog]:has-text("khôi phục")')
     await page.click('[role=dialog] button:has-text("Move to trash")')
     await waitJob('delete')
     await expect.poll(() => names(0)).not.toContain('junk.txt')
@@ -272,7 +272,7 @@ describe('folder sync between the panes', () => {
     await page.waitForSelector('[data-testid=sync-row]')
     const rowsText = await page.locator('[data-testid=sync-row] .name').allTextContents()
     expect(rowsText.map((t) => t.replace('📁 ', '')).sort()).toEqual(['img', 'img/logo.png', 'index.html', 'stale.txt', 'style.css'])
-    await expect.poll(() => page.locator('[data-testid=sync-summary]').textContent()).toContain('3 to copy')
+    await expect.poll(() => page.locator('[data-testid=sync-summary]').textContent()).toContain('3 cần chép')
 
     // Mirror to the right, removing extras: stale.txt is marked for removal.
     await page.check('[role=dialog] input[name=deleteExtras]')
@@ -281,11 +281,11 @@ describe('folder sync between the panes', () => {
     // The user changes their mind about it: click cycles ltr -> rtl (copy it to the left) instead.
     await stale.click()
     await expect.poll(() => stale.textContent()).toBe('←')
-    await expect.poll(() => page.locator('[data-testid=sync-summary]').textContent()).toContain('4 to copy')
+    await expect.poll(() => page.locator('[data-testid=sync-summary]').textContent()).toContain('4 cần chép')
     await page.screenshot({ path: process.env.E2E_SHOT_SYNC ?? join(tmp, 'sync.png') })
 
     await page.click('[role=dialog] button:has-text("Sync now")')
-    await page.locator('[data-testid=sync-result]:has-text("Done")').waitFor({ timeout: 20_000 })
+    await page.locator('[data-testid=sync-result]:has-text("Xong")').waitFor({ timeout: 20_000 })
     expect(await readFile(join(remote, 'sync-b/index.html'), 'utf8')).toBe('NEW PAGE')
     expect(await readFile(join(remote, 'sync-b/img/logo.png'), 'utf8')).toBe('png')
     expect(await readFile(join(home, 'sync-a/stale.txt'), 'utf8')).toBe('stale') // went the way the user chose
@@ -296,7 +296,7 @@ describe('folder sync between the panes', () => {
   it('afterwards the two folders compare as identical', async () => {
     await page.click('button:has-text("Sync folders")')
     await page.click('[role=dialog] button:has-text("Compare")')
-    await page.locator('[data-testid=sync-summary]:has-text("Nothing to do")').waitFor()
+    await page.locator('[data-testid=sync-summary]:has-text("Không có gì cần làm")').waitFor()
     expect(await page.locator('[data-testid=sync-row]').count()).toBe(0) // identical items are hidden by default
     await page.click('[role=dialog] button:has-text("Cancel")')
   })
@@ -309,7 +309,7 @@ describe('folder sync between the panes', () => {
     await expect.poll(() => names(0)).toContain('photo.jpg')
     await page.click('button:has-text("Sync folders")')
     await page.click('[role=dialog] button:has-text("Compare")')
-    await page.waitForSelector('[role=alert]:has-text("same, or one is inside")')
+    await page.waitForSelector('[role=alert]:has-text("trùng nhau")')
     await page.click('[role=dialog] button:has-text("Cancel")')
   })
 })
@@ -334,7 +334,7 @@ describe('editing a remote file', () => {
     await expect.poll(async () => (await H.openedByApp(app)).length).toBeGreaterThan(0)
     local = (await H.openedByApp(app)).at(-1)!
     expect(await readFile(local, 'utf8')).toBe('listen 80;\n')
-    await expect.poll(() => page.locator('[data-testid="edit-app.conf"]').textContent()).toContain('saved to server')
+    await expect.poll(() => page.locator('[data-testid="edit-app.conf"]').textContent()).toContain('đã lưu lên server')
   })
 
   it('saving in the editor uploads the file, with no further action', async () => {
@@ -362,7 +362,7 @@ describe('editing a remote file', () => {
     await H.setNextDialogAnswer(app, 0)
     await writeFile(local, 'local v3\n')
     await page.locator('[data-testid="edit-app.conf"] .badge.unsynced').waitFor({ timeout: 15_000 })
-    await page.locator('[role=alert]:has-text("NOT uploaded")').waitFor()
+    await page.locator('[role=alert]:has-text("CHƯA")').waitFor()
     expect(await readFile(remoteConf(), 'utf8')).toBe('server v3\n')
     await page.screenshot({ path: process.env.E2E_SHOT_EDIT ?? join(tmp, 'edit.png') })
   })

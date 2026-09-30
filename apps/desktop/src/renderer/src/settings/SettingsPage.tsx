@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { getThemeChoice, setThemeChoice, type ThemeChoice } from '../theme'
+import { AutoBackupCard } from '../drive/AutoBackupCard'
 import { DriveCard } from '../drive/DriveCard'
 import { FileSyncCard } from '../drive/FileSyncCard'
 import { VaultGate } from '../vault/VaultGate'
@@ -12,6 +13,7 @@ export function SettingsPage(): React.JSX.Element {
       <VaultGate>
         <DriveCard />
         <FileSyncCard />
+        <AutoBackupCard />
         <PassphraseCard />
       </VaultGate>
     </div>
@@ -24,9 +26,9 @@ function PassphraseCard(): React.JSX.Element {
   const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null)
   const submit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
-    if (pass !== again) return setMsg({ text: 'The two passphrases do not match', error: true })
+    if (pass !== again) return setMsg({ text: 'Hai passphrase không khớp nhau', error: true })
     const r = await window.mymius.vault.changePassphrase(pass)
-    if (r.ok) { setPass(''); setAgain(''); setMsg({ text: 'Passphrase changed. Your other devices will ask for the new one after they next sync.', error: false }) }
+    if (r.ok) { setPass(''); setAgain(''); setMsg({ text: 'Đã đổi passphrase. Các thiết bị khác sẽ hỏi passphrase mới sau lần đồng bộ tới.', error: false }) }
     else setMsg({ text: r.error, error: true })
   }
   return (

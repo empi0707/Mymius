@@ -5,14 +5,14 @@ import { Modal } from './Modal'
 import { useVirtualList } from './useVirtualList'
 
 const MODES: { id: SyncMode; label: string; hint: string }[] = [
-  { id: 'mirror-ltr', label: 'Make right match left  →', hint: 'The right folder becomes a copy of the left one.' },
-  { id: 'mirror-rtl', label: '←  Make left match right', hint: 'The left folder becomes a copy of the right one.' },
-  { id: 'two-way', label: 'Two-way  ↔', hint: 'New files go both ways and the newer version wins. Deletions are never copied across.' }
+  { id: 'mirror-ltr', label: 'Make right match left  →', hint: 'Thư mục bên phải trở thành bản sao của thư mục bên trái.' },
+  { id: 'mirror-rtl', label: '←  Make left match right', hint: 'Thư mục bên trái trở thành bản sao của thư mục bên phải.' },
+  { id: 'two-way', label: 'Two-way  ↔', hint: 'File mới được chép qua cả hai chiều và bản mới hơn thắng. Việc xóa không bao giờ được chép sang bên kia.' }
 ]
 
 const STATUS_LABEL: Record<SyncStatus, string> = {
-  same: 'same', 'left-only': 'only on left', 'right-only': 'only on right', 'left-newer': 'left is newer',
-  'right-newer': 'right is newer', different: 'differs', 'type-mismatch': 'file vs folder'
+  same: 'giống nhau', 'left-only': 'chỉ có ở trái', 'right-only': 'chỉ có ở phải', 'left-newer': 'bên trái mới hơn',
+  'right-newer': 'bên phải mới hơn', different: 'khác nhau', 'type-mismatch': 'file và thư mục'
 }
 
 /** The next arrow when the user clicks one: their own choice cycles through all three. */
@@ -120,30 +120,30 @@ export function SyncDialog({ left, right, leftLabel, rightLabel, jobs, onClose, 
           ))}
         </fieldset>
         <div className="sync-checks">
-          <label className="radio"><input type="checkbox" name="deleteExtras" checked={deleteExtras} disabled={mode === 'two-way'} onChange={(e) => setDeleteExtras(e.target.checked)} />Remove files that exist only on the destination <span className="sub">(kept in .mymius-trash)</span></label>
-          <label className="radio"><input type="checkbox" name="byContent" checked={byContent} onChange={(e) => setByContent(e.target.checked)} />Compare by content <span className="sub">(slower, ignores dates)</span></label>
+          <label className="radio"><input type="checkbox" name="deleteExtras" checked={deleteExtras} disabled={mode === 'two-way'} onChange={(e) => setDeleteExtras(e.target.checked)} />Xóa các file chỉ có ở thư mục đích <span className="sub">(được giữ trong .mymius-trash)</span></label>
+          <label className="radio"><input type="checkbox" name="byContent" checked={byContent} onChange={(e) => setByContent(e.target.checked)} />Compare by content <span className="sub">(chậm hơn, bỏ qua ngày giờ)</span></label>
           <label>Ignore <input name="ignore" value={ignore} onChange={(e) => setIgnore(e.target.value)} spellCheck={false} /></label>
         </div>
       </div>
 
       {error && <p className="error" role="alert">{error}</p>}
-      {busy === 'comparing' && <p className="hint">Comparing folders…</p>}
+      {busy === 'comparing' && <p className="hint">Đang so sánh các thư mục…</p>}
 
       {result && (
         <>
           <div className="sync-summary" data-testid="sync-summary">
             {summary ? (
-              nothing ? 'Nothing to do: the folders already match for this direction.' :
-              <>{summary.copies} to copy ({formatSize(summary.bytes)}) · {summary.mkdirs} new folder{summary.mkdirs === 1 ? '' : 's'} · {summary.deletes} to remove{summary.conflicts ? ` · ${summary.conflicts} conflict${summary.conflicts === 1 ? '' : 's'} left for you` : ''}</>
-            ) : 'Working it out…'}
-            <label className="toggle"><input type="checkbox" checked={showSame} onChange={(e) => setShowSame(e.target.checked)} />show identical</label>
+              nothing ? 'Không có gì cần làm: các thư mục đã khớp nhau theo chiều này.' :
+              <>{summary.copies} cần chép ({formatSize(summary.bytes)}) · {summary.mkdirs} thư mục mới · {summary.deletes} cần xóa{summary.conflicts ? ` · ${summary.conflicts} xung đột để bạn tự xử lý` : ''}</>
+            ) : 'Đang tính toán…'}
+            <label className="toggle"><input type="checkbox" checked={showSame} onChange={(e) => setShowSame(e.target.checked)} />hiện mục giống nhau</label>
           </div>
-          {result.truncated && <p className="hint">Only the first {result.items.length} differences are shown.</p>}
-          {result.scanErrors.length > 0 && <details className="issues"><summary>{result.scanErrors.length} folder{result.scanErrors.length === 1 ? '' : 's'} could not be read</summary><ul>{result.scanErrors.slice(0, 20).map((e, i) => <li key={i}>{e}</li>)}</ul></details>}
+          {result.truncated && <p className="hint">Chỉ hiển thị {result.items.length} khác biệt đầu tiên.</p>}
+          {result.scanErrors.length > 0 && <details className="issues"><summary>{result.scanErrors.length} thư mục không đọc được</summary><ul>{result.scanErrors.slice(0, 20).map((e, i) => <li key={i}>{e}</li>)}</ul></details>}
           <div className="sync-table" role="table" aria-label="Differences">
             <div className="sync-head" role="row"><span>Left</span><span /><span>Right</span><span>Item</span></div>
             <div ref={v.ref} className="sync-rows" onScroll={v.onScroll}>
-              {visible.length === 0 && <div className="pane-msg">No differences</div>}
+              {visible.length === 0 && <div className="pane-msg">Không có khác biệt</div>}
               <div style={{ height: v.totalHeight, position: 'relative' }}>
                 {visible.slice(v.start, v.end).map((item, k) => (
                   <SyncRow key={item.rel} item={item} top={(v.start + k) * ROW} dir={overrides[item.rel] ?? directions[item.rel] ?? 'skip'} overridden={item.rel in overrides} onToggle={() => toggle(item.rel)} />
@@ -156,7 +156,7 @@ export function SyncDialog({ left, right, leftLabel, rightLabel, jobs, onClose, 
 
       {job && (
         <div className={`sync-result ${job.state}`} role="status" data-testid="sync-result">
-          {job.state === 'running' ? `Syncing… ${job.filesDone}/${job.filesTotal}` : `${job.state === 'done' ? 'Done. ' : job.state === 'cancelled' ? 'Cancelled. ' : 'Failed. '}${job.summary ?? ''}`}
+          {job.state === 'running' ? `Đang đồng bộ… ${job.filesDone}/${job.filesTotal}` : `${job.state === 'done' ? 'Xong. ' : job.state === 'cancelled' ? 'Đã hủy. ' : 'Thất bại. '}${job.summary ?? ''}`}
           {job.errors.length > 0 && <ul>{job.errors.slice(0, 10).map((e, i) => <li key={i}><code>{e.path}</code>: {e.message}</li>)}</ul>}
         </div>
       )}

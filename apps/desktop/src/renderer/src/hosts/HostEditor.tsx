@@ -73,11 +73,11 @@ export function HostEditor({ host, hosts, keys, onCancel, onSave, onDelete }: Pr
         ))}
       </fieldset>
       {type === 'password' && (
-        <label>Password<input name="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="off" placeholder={editing && host.authType === 'password' ? 'Saved - leave empty to keep' : ''} /></label>
+        <label>Password<input name="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="off" placeholder={editing && host.authType === 'password' ? 'Đã lưu - để trống nếu muốn giữ nguyên' : ''} /></label>
       )}
       {type === 'key' && (
         keys.length === 0
-          ? <p className="hint">No keys in the vault yet. Import one from the Keys page first.</p>
+          ? <p className="hint">Vault chưa có khóa nào. Hãy nhập khóa ở trang Keys trước.</p>
           : <label>Key<select name="keyId" value={keyId} onChange={(e) => setKeyId(e.target.value)}>{keys.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}</select></label>
       )}
       {type === 'keyFile' && (
@@ -86,7 +86,7 @@ export function HostEditor({ host, hosts, keys, onCancel, onSave, onDelete }: Pr
             <label className="grow">Key file (this device only)<input name="keyPath" value={keyPath} onChange={(e) => setKeyPath(e.target.value)} placeholder="~/.ssh/id_ed25519" spellCheck={false} /></label>
             <button type="button" className="secondary" onClick={() => void window.mymius.pickPrivateKey().then((p) => p && setKeyPath(p))}>Browse…</button>
           </div>
-          <label>Passphrase (if any)<input name="passphrase" type="password" value={passphrase} onChange={(e) => setPassphrase(e.target.value)} autoComplete="off" placeholder={editing && host.authType === 'keyFile' ? 'Saved - leave empty to keep' : ''} /></label>
+          <label>Passphrase (if any)<input name="passphrase" type="password" value={passphrase} onChange={(e) => setPassphrase(e.target.value)} autoComplete="off" placeholder={editing && host.authType === 'keyFile' ? 'Đã lưu - để trống nếu muốn giữ nguyên' : ''} /></label>
         </>
       )}
 

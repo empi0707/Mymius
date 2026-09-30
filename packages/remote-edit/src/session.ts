@@ -167,7 +167,7 @@ export class RemoteEditSession extends EventEmitter {
           if (!(err instanceof ConflictError)) throw err
         }
       }
-      throw new Error('The remote file keeps changing; gave up after several attempts')
+      throw new Error('File trên server liên tục thay đổi; đã bỏ cuộc sau nhiều lần thử')
     } finally {
       await fs.rm(snapshot, { force: true })
     }

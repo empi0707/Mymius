@@ -90,7 +90,7 @@ export class SshConnection {
       await new Promise<void>((resolve, reject) => {
         client.once('ready', resolve)
         client.once('error', reject)
-        client.once('close', () => reject(new Error('Connection closed before it was established')))
+        client.once('close', () => reject(new Error('Kết nối bị đóng trước khi thiết lập xong')))
         if (opts.keyboardInteractive) {
           const answer = opts.keyboardInteractive
           client.on('keyboard-interactive', (_name, _instr, _lang, prompts, finish) => {

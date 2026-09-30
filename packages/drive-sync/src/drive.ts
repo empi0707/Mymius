@@ -89,7 +89,7 @@ export class DriveClient {
       if (!retryable) throw new DriveError(res!.status, reason, body.error?.message ?? res!.statusText)
       if (attempt >= this.maxAttempts) {
         if (!res) throw new NetworkError(netErr)
-        throw new DriveError(res.status, reason, body.error?.message ?? 'still failing after several attempts')
+        throw new DriveError(res.status, reason, body.error?.message ?? 'vẫn lỗi sau nhiều lần thử')
       }
       const retryAfter = Number(res?.headers.get('retry-after'))
       const backoff = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : Math.min(30_000, 500 * 2 ** (attempt - 1))
@@ -120,9 +120,9 @@ export class DriveClient {
     const limit = this.opts.maxDownloadBytes ?? 20 * 1024 * 1024
     const res = await this.request('GET', `/drive/v3/files/${encodeURIComponent(id)}?alt=media`)
     const declared = Number(res.headers.get('content-length'))
-    if (Number.isFinite(declared) && declared > limit) throw new DriveError(413, 'tooLarge', 'The file is larger than this app ever writes')
+    if (Number.isFinite(declared) && declared > limit) throw new DriveError(413, 'tooLarge', 'File lớn hơn mọi file mà ứng dụng này từng ghi')
     const buf = Buffer.from(await res.arrayBuffer())
-    if (buf.length > limit) throw new DriveError(413, 'tooLarge', 'The file is larger than this app ever writes')
+    if (buf.length > limit) throw new DriveError(413, 'tooLarge', 'File lớn hơn mọi file mà ứng dụng này từng ghi')
     return buf.toString('utf8')
   }
 

@@ -102,7 +102,7 @@ export function TerminalView({ request, os, attempt, active, onStatus, testId }:
       unregister = router.register(id, {
         onData: (data) => term.write(data, () => api.ack(id, data.length)),
         onExit: (e) => {
-          const why = e.error ? `Connection lost: ${e.error}` : 'Session closed'
+          const why = e.error ? `Mất kết nối: ${e.error}` : 'Phiên đã đóng'
           term.write(`\r\n\x1b[2m[${why}]\x1b[0m\r\n`)
           sessionId = null
           onStatus(e.error ? 'error' : 'closed', why)

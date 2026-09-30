@@ -3,7 +3,7 @@ import type { EditInfo, JobState } from '../../../shared/ipc'
 import { formatSize } from './format'
 
 const EDIT_LABEL: Record<EditInfo['state'], string> = {
-  opening: 'opening', synced: 'saved to server', uploading: 'uploading…', unsynced: 'NOT uploaded', conflict: 'waiting for you', error: 'error', closed: 'closed'
+  opening: 'đang mở', synced: 'đã lưu lên server', uploading: 'đang tải lên…', unsynced: 'CHƯA tải lên', conflict: 'đang chờ bạn quyết định', error: 'lỗi', closed: 'đã đóng'
 }
 
 export function JobsBar({ jobs, edits, onCancel, onDismiss, onCloseEdit }: {
@@ -27,12 +27,12 @@ export function JobsBar({ jobs, edits, onCancel, onDismiss, onCloseEdit }: {
           {edits.map((e) => (
             <div key={e.id} className="job edit" data-testid={`edit-${e.name}`}>
               <div className="job-main">
-                <strong>Editing {e.name}</strong> <span className="sub">on {e.hostLabel}</span>
+                <strong>Editing {e.name}</strong> <span className="sub">trên {e.hostLabel}</span>
                 <span className={`badge ${e.state}`}>{EDIT_LABEL[e.state]}</span>
                 {e.message && <span className="sub error"> {e.message}</span>}
               </div>
               <div className="job-actions">
-                <button className="secondary" onClick={() => onCloseEdit(e.id, false)} title="Stop watching this file. Unsaved changes stay on this computer.">Done</button>
+                <button className="secondary" onClick={() => onCloseEdit(e.id, false)} title="Dừng theo dõi file này. Thay đổi chưa lưu vẫn ở lại trên máy này.">Done</button>
                 {e.state === 'unsynced' && <button className="danger" onClick={() => onCloseEdit(e.id, true)}>Discard my changes</button>}
               </div>
             </div>
@@ -43,11 +43,11 @@ export function JobsBar({ jobs, edits, onCancel, onDismiss, onCloseEdit }: {
               <div key={j.id} className={`job ${j.state}`} data-testid={`job-${j.kind}`}>
                 <div className="job-main">
                   <strong>{j.label}</strong>
-                  {j.state === 'running' && <span className="sub"> {j.filesDone}/{j.filesTotal || '?'} · {formatSize(j.bytesDone)}{j.bytesTotal ? ` of ${formatSize(j.bytesTotal)}` : ''}</span>}
-                  {j.state !== 'running' && <span className="sub"> {j.state === 'cancelled' ? 'Cancelled. ' : j.state === 'failed' ? 'Failed. ' : ''}{j.summary}</span>}
+                  {j.state === 'running' && <span className="sub"> {j.filesDone}/{j.filesTotal || '?'} · {formatSize(j.bytesDone)}{j.bytesTotal ? ` / ${formatSize(j.bytesTotal)}` : ''}</span>}
+                  {j.state !== 'running' && <span className="sub"> {j.state === 'cancelled' ? 'Đã hủy. ' : j.state === 'failed' ? 'Thất bại. ' : ''}{j.summary}</span>}
                   {j.state === 'running' && <div className="bar"><div style={{ width: `${Math.round(pct * 100)}%` }} /></div>}
                   {j.errors.length > 0 && (
-                    <details className="issues"><summary>{j.errors.length} problem{j.errors.length === 1 ? '' : 's'}</summary>
+                    <details className="issues"><summary>{j.errors.length} sự cố</summary>
                       <ul>{j.errors.slice(0, 50).map((x, i) => <li key={i}><code>{x.path}</code>: {x.message}</li>)}</ul>
                     </details>
                   )}

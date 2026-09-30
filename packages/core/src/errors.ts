@@ -19,7 +19,7 @@ export class AlreadyExistsError extends Error {
 /** The target changed between the moment it was inspected and the moment it was written. */
 export class ConflictError extends Error {
   constructor(readonly current: FileVersion | null) {
-    super('Target changed since it was last checked')
+    super('Đích đã thay đổi kể từ lần kiểm tra trước')
     this.name = 'ConflictError'
   }
 }

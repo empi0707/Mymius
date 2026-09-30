@@ -71,7 +71,7 @@ describe('backup and restore', () => {
     await hosts(b.store).put(host('from-b'))
     await until(() => names(a.store).includes('from-b'), 'b -> a')
     await hosts(a.store).put(host('from-a'))
-    await until(() => names(b.store).includes('from-a'), 'a -> b').catch((e) => { console.log('DBG2', JSON.stringify([a.service.status(), b.service.status(), names(a.store), names(b.store)])); throw e })
+    await until(() => names(b.store).includes('from-a'), 'a -> b')
     expect(names(a.store)).toEqual(['from-a', 'from-b', 'prod'])
   })
 
@@ -82,7 +82,7 @@ describe('backup and restore', () => {
     await a.service.exportBackup()
     const b = await device('b', { vault: true })
     b.ctl.path = a.ctl.path
-    expect(err(await b.service.importBackup())).toMatch(/different vault/)
+    expect(err(await b.service.importBackup())).toMatch(/vault khác/)
     expect(names(b.store)).toEqual([])
   })
 
@@ -92,19 +92,19 @@ describe('backup and restore', () => {
     expect(await a.service.exportBackup()).toEqual({ ok: false, error: '' })
     expect(await a.service.link('create')).toEqual({ ok: false, error: '' })
     await a.store.lock()
-    expect(err(await a.service.exportBackup())).toMatch(/Unlock/)
+    expect(err(await a.service.exportBackup())).toMatch(/mở khóa/)
   })
 
   it('files that are not sync files are refused with a plain message', async () => {
     const a = await device('a', { vault: true })
-    for (const [content, re] of [['not json', /not a Mymius sync file/], ['{"kind":"x"}', /not a Mymius sync file/]] as const) {
+    for (const [content, re] of [['not json', /không phải file đồng bộ của Mymius/], ['{"kind":"x"}', /không phải file đồng bộ của Mymius/]] as const) {
       const p = join(dir, 'bad.json'); await writeFile(p, content)
       a.ctl.path = p
       expect(err(await a.service.importBackup())).toMatch(re)
       expect(err(await a.service.link('existing'))).toMatch(re)
     }
     a.ctl.path = join(dir, 'missing.json')
-    expect(err(await a.service.link('existing'))).toMatch(/could not be found/)
+    expect(err(await a.service.link('existing'))).toMatch(/Không tìm thấy file/)
   })
 })
 
@@ -119,7 +119,7 @@ describe('keeping in step with a file', () => {
     await writeFile(a.ctl.path, altered)
     await hosts(a.store).put(host('x'))
     await until(async () => (await a.service.status()).phase === 'error', 'the problem to be noticed')
-    expect((await a.service.status()).error).toMatch(/integrity/)
+    expect((await a.service.status()).error).toMatch(/toàn vẹn/)
     expect(await readFile(a.ctl.path, 'utf8')).toBe(altered)
   })
 
@@ -141,7 +141,7 @@ describe('keeping in step with a file', () => {
     await until(async () => (await b.service.status()).phase === 'idle' && (await b.service.status()).lastSyncAt !== undefined, 'b to settle')
     // both write at nearly the same moment
     await Promise.all([hosts(a.store).put(host('a1')), hosts(b.store).put(host('b1'))])
-    await until(() => names(a.store).length === 2 && names(b.store).length === 2, 'both to converge').catch((e) => { console.log('DBG', JSON.stringify([a.service.status(), b.service.status(), names(a.store), names(b.store)])); throw e })
+    await until(() => names(a.store).length === 2 && names(b.store).length === 2, 'both to converge')
     expect(names(a.store)).toEqual(['a1', 'b1'])
   })
 

@@ -26,7 +26,7 @@ export interface DriveHost {
 const TOKENS = 'drive-tokens'
 const SYNC_STATE = 'drive-sync-state'
 
-const NOT_CONFIGURED = 'Enter a Google client ID first (see the setup guide)'
+const NOT_CONFIGURED = 'Hãy nhập Google client ID trước (xem hướng dẫn cài đặt)'
 
 function friendly(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
@@ -88,9 +88,9 @@ export class DriveSyncService {
     const o = (input ?? {}) as Partial<DriveClientSettings>
     const clientId = typeof o.clientId === 'string' ? o.clientId.trim() : ''
     const clientSecret = typeof o.clientSecret === 'string' ? o.clientSecret.trim() : ''
-    if (!clientId || clientId.length > 300 || /\s/.test(clientId)) return { ok: false, error: 'That does not look like a Google client ID' }
-    if (clientSecret.length > 300 || /\s/.test(clientSecret)) return { ok: false, error: 'That does not look like a client secret' }
-    if (this.engine || this.connecting) return { ok: false, error: 'Disconnect from Google Drive before changing the client ID' }
+    if (!clientId || clientId.length > 300 || /\s/.test(clientId)) return { ok: false, error: 'Đây không giống một Google client ID' }
+    if (clientSecret.length > 300 || /\s/.test(clientSecret)) return { ok: false, error: 'Đây không giống một client secret' }
+    if (this.engine || this.connecting) return { ok: false, error: 'Hãy đăng xuất khỏi Google Drive trước khi đổi client ID' }
     this.settings = { clientId, ...(clientSecret ? { clientSecret } : {}) }
     await mkdir(path.dirname(this.host.settingsFile), { recursive: true })
     const tmp = `${this.host.settingsFile}.tmp`
@@ -146,9 +146,9 @@ export class DriveSyncService {
   // ---- connecting ----------------------------------------------------------------------------------
 
   async connect(): Promise<Result> {
-    if (this.connecting) return { ok: false, error: 'A sign-in is already in progress' }
+    if (this.connecting) return { ok: false, error: 'Một phiên đăng nhập đang diễn ra' }
     if (this.engine) {
-      if (this.engine.status.phase !== 'needs-auth') return { ok: false, error: 'Already connected to Google Drive' }
+      if (this.engine.status.phase !== 'needs-auth') return { ok: false, error: 'Đã kết nối với Google Drive' }
       // Access was withdrawn: signing in again replaces the dead credentials, keeping everything else.
       this.engine.stop()
       this.engine = undefined
@@ -186,7 +186,7 @@ export class DriveSyncService {
   private async open(url: string): Promise<void> {
     const u = new URL(url)
     if (u.protocol !== 'https:' && !(this.host.allowInsecureHttp && u.protocol === 'http:')) {
-      throw new Error('Refused to open a sign-in page that is not served over HTTPS')
+      throw new Error('Từ chối mở trang đăng nhập không dùng HTTPS')
     }
     await this.host.openExternal(url)
   }
@@ -247,7 +247,7 @@ export class DriveSyncService {
   }
 
   async syncNow(): Promise<Result> {
-    if (!this.engine) return { ok: false, error: 'Not connected to Google Drive' }
+    if (!this.engine) return { ok: false, error: 'Chưa kết nối với Google Drive' }
     try {
       await this.engine.syncNow()
       return { ok: true }
@@ -291,7 +291,7 @@ export class DriveSyncService {
     }
     this.publish()
     if (deleteRemote && remoteProblem) {
-      return { ok: false, error: `Signed out on this computer, but the synced data could not be erased from Google Drive (${remoteProblem}). Sign in and try again to erase it.` }
+      return { ok: false, error: `Đã đăng xuất trên máy này, nhưng chưa xóa được dữ liệu đã đồng bộ khỏi Google Drive (${remoteProblem}). Hãy đăng nhập và thử xóa lại.` }
     }
     return { ok: true }
   }

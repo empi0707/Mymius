@@ -70,6 +70,6 @@ export function chainToOptions(
       : hop.auth.type === 'key' ? { ...base, privateKey: hop.auth.privateKey, ...(hop.auth.passphrase ? { passphrase: hop.auth.passphrase } : {}) }
       : { ...base, agent: hop.auth.socket }
   }
-  if (!options) throw new Error('No host to connect to')
+  if (!options) throw new Error('Không có host để kết nối')
   return options
 }

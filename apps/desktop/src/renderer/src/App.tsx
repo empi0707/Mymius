@@ -49,10 +49,10 @@ export function App(): React.JSX.Element {
           )}
           {drive && drive.phase !== 'not-connected' && (
             <button className="link sync-line" data-testid="sync-line" onClick={() => setSection('settings')} title={drive.error ?? ''}>
-              {drive.phase === 'error' || drive.phase === 'needs-auth' ? '⚠ Drive sync problem'
-                : drive.phase === 'syncing' || drive.phase === 'connecting' ? '⟳ Syncing…'
-                : drive.phase === 'locked' ? 'Drive sync paused'
-                : drive.lastSyncAt ? `✓ Synced ${timeAgo(drive.lastSyncAt)}` : 'Drive sync on'}
+              {drive.phase === 'error' || drive.phase === 'needs-auth' ? '⚠ Đồng bộ Drive gặp sự cố'
+                : drive.phase === 'syncing' || drive.phase === 'connecting' ? '⟳ Đang đồng bộ…'
+                : drive.phase === 'locked' ? 'Đồng bộ Drive tạm dừng'
+                : drive.lastSyncAt ? `✓ Đã đồng bộ ${timeAgo(drive.lastSyncAt)}` : 'Đang bật đồng bộ Drive'}
             </button>
           )}
           <div>{info ? `${info.name} ${info.version} · ${info.os}/${info.arch}` : ''}</div>
@@ -82,7 +82,7 @@ export function App(): React.JSX.Element {
         <div className="section" hidden={section !== 'files'}><FilesPage visible={section === 'files'} /></div>
         {section === 'settings' && <div className="section scroll"><SettingsPage /></div>}
         {info && !info.secureStorage && (
-          <p className="warn">No system keychain available: the vault can't be remembered on this device and will ask for its passphrase each time.</p>
+          <p className="warn">Máy này không có kho khóa hệ thống (keychain): không thể ghi nhớ vault trên thiết bị này, mỗi lần mở sẽ hỏi lại passphrase.</p>
         )}
       </main>
     </div>

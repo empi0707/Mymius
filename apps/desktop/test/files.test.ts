@@ -110,11 +110,11 @@ describe('places and browsing', () => {
 
   it('says what is wrong instead of throwing', async () => {
     await put(home, 'f.txt', 'x')
-    expect(fail(await files.list(OWNER, LOCAL_SESSION, join(home, 'nope')))).toBe('Folder not found')
-    expect(fail(await files.list(OWNER, LOCAL_SESSION, join(home, 'f.txt')))).toBe('Not a folder')
-    expect(fail(await files.list(OWNER, 'no-such-session', home))).toMatch(/no longer open/)
-    expect(fail(await files.list(OWNER, LOCAL_SESSION, '\0bad'))).toBe('Invalid path')
-    expect(fail(await files.list(OWNER, LOCAL_SESSION, 42))).toBe('Invalid path')
+    expect(fail(await files.list(OWNER, LOCAL_SESSION, join(home, 'nope')))).toBe('Không tìm thấy thư mục')
+    expect(fail(await files.list(OWNER, LOCAL_SESSION, join(home, 'f.txt')))).toBe('Không phải thư mục')
+    expect(fail(await files.list(OWNER, 'no-such-session', home))).toMatch(/không còn mở/)
+    expect(fail(await files.list(OWNER, LOCAL_SESSION, '\0bad'))).toBe('Đường dẫn không hợp lệ')
+    expect(fail(await files.list(OWNER, LOCAL_SESSION, 42))).toBe('Đường dẫn không hợp lệ')
   })
 
   it.skipIf(process.platform === 'win32')('a link to a folder is listed as a link that can be opened; a broken one is marked', async () => {
@@ -140,20 +140,20 @@ describe('places and browsing', () => {
   })
 
   it('connecting to a host that does not exist, or with the vault locked, fails cleanly', async () => {
-    expect(fail(await files.connect(OWNER, 'host:nope'))).toMatch(/no longer exists/)
+    expect(fail(await files.connect(OWNER, 'host:nope'))).toMatch(/không còn tồn tại/)
     expect(fail(await files.connect(OWNER, 42))).toBeTruthy()
     await svc.lock()
-    expect(fail(await files.connect(OWNER, hostId))).toMatch(/locked/)
+    expect(fail(await files.connect(OWNER, hostId))).toMatch(/đang khóa/)
   })
 
   it('another window cannot use my connection, and disconnecting really closes it', async () => {
     const sid = await connect()
-    expect(fail(await files.list(2, sid, '/'))).toMatch(/no longer open/)
+    expect(fail(await files.list(2, sid, '/'))).toMatch(/không còn mở/)
     expect(server.connectionCount()).toBe(1)
     await files.disconnect(2, sid) // not the owner: ignored
     ok(await files.list(OWNER, sid, '/'))
     await files.disconnect(OWNER, sid)
-    expect(fail(await files.list(OWNER, sid, '/'))).toMatch(/no longer open/)
+    expect(fail(await files.list(OWNER, sid, '/'))).toMatch(/không còn mở/)
     await until(() => server.connectionCount() === 0, 'connection closed')
   })
 
@@ -161,7 +161,7 @@ describe('places and browsing', () => {
     const sid = await connect()
     await server.close()
     await until(async () => !(await files.list(OWNER, sid, '/')).ok, 'error after drop')
-    expect(fail(await files.list(OWNER, sid, '/'))).toMatch(/connection was lost/)
+    expect(fail(await files.list(OWNER, sid, '/'))).toMatch(/mất kết nối/)
   })
 })
 
@@ -169,7 +169,7 @@ describe('making and renaming', () => {
   it('creates a folder and refuses bad or duplicate names', async () => {
     ok(await files.mkdir(OWNER, LOCAL_SESSION, home, 'New folder'))
     expect((await stat(join(home, 'New folder'))).isDirectory()).toBe(true)
-    expect(fail(await files.mkdir(OWNER, LOCAL_SESSION, home, 'New folder'))).toMatch(/already exists/)
+    expect(fail(await files.mkdir(OWNER, LOCAL_SESSION, home, 'New folder'))).toMatch(/trùng tên/)
     for (const bad of ['', ' ', '..', 'a/b', 'a\\b']) expect(fail(await files.mkdir(OWNER, LOCAL_SESSION, home, bad))).toBeTruthy()
     expect(fail(await files.mkdir(OWNER, LOCAL_SESSION, home, 7))).toBeTruthy()
     expect(await readdir(home)).toEqual(['New folder'])
@@ -178,7 +178,7 @@ describe('making and renaming', () => {
   it('renames, but never onto something that exists, and never out of the folder', async () => {
     await put(home, 'a.txt', 'a'); await put(home, 'b.txt', 'b')
     ok(await files.rename(OWNER, LOCAL_SESSION, join(home, 'a.txt'), 'c.txt'))
-    expect(fail(await files.rename(OWNER, LOCAL_SESSION, join(home, 'c.txt'), 'b.txt'))).toMatch(/already exists/)
+    expect(fail(await files.rename(OWNER, LOCAL_SESSION, join(home, 'c.txt'), 'b.txt'))).toMatch(/trùng tên/)
     expect(fail(await files.rename(OWNER, LOCAL_SESSION, join(home, 'c.txt'), '../escape.txt'))).toBeTruthy()
     ok(await files.rename(OWNER, LOCAL_SESSION, join(home, 'c.txt'), 'c.txt')) // same name: nothing to do
     expect((await readdir(home)).sort()).toEqual(['b.txt', 'c.txt'])
@@ -199,7 +199,7 @@ describe('copy, move and delete jobs', () => {
     const { jobId } = ok(await files.transfer(OWNER, { fromSession: LOCAL_SESSION, paths: [join(home, 'proj')], toSession: sid, toDir: '/', mode: 'copy', policy: 'skip' }))
     const job = await finished(jobId)
     expect(job).toMatchObject({ state: 'done', kind: 'copy', filesDone: 2, filesTotal: 2, bytesDone: 7, bytesTotal: 7 })
-    expect(job.summary).toBe('2 files copied')
+    expect(job.summary).toBe('2 file đã chép')
     expect(job.errors).toEqual([])
     expect(await readFile(join(remote, 'proj/sub/b.txt'), 'utf8')).toBe('bbbb')
     expect((await stat(join(remote, 'proj/a.txt'))).mtimeMs).toBe(T0 * 1000) // times survive the trip
@@ -233,10 +233,10 @@ describe('copy, move and delete jobs', () => {
     const sid = await connect()
     const before = (await stat(join(remote, 'm.txt'))).ino
     const job = await finished(ok(await files.transfer(OWNER, { fromSession: sid, paths: ['/m.txt'], toSession: sid, toDir: '/to', mode: 'move', policy: 'skip' })).jobId)
-    expect(job.summary).toBe('0 files moved, 1 item moved')
+    expect(job.summary).toBe('0 file đã chuyển, 1 mục đã chuyển')
     expect((await stat(join(remote, 'to/m.txt'))).ino).toBe(before)
     const same = await finished(ok(await files.transfer(OWNER, { fromSession: sid, paths: ['/to/m.txt'], toSession: sid, toDir: '/to', mode: 'move', policy: 'skip' })).jobId)
-    expect(same.summary).toBe('Already there')
+    expect(same.summary).toBe('Đã ở đúng chỗ')
     expect(await readFile(join(remote, 'to/m.txt'), 'utf8')).toBe('m')
   })
 
@@ -263,7 +263,7 @@ describe('copy, move and delete jobs', () => {
     const job = await finished(ok(await files.transfer(OWNER, { fromSession: LOCAL_SESSION, paths: [join(home, 'ok.txt'), join(home, 'gone.txt')], toSession: sid, toDir: '/', mode: 'copy', policy: 'skip' })).jobId)
     expect(job.state).toBe('done')
     expect(job.errors).toEqual([{ path: join(home, 'gone.txt'), message: 'No longer exists' }])
-    expect(job.summary).toBe('1 file copied, 1 failed')
+    expect(job.summary).toBe('1 file đã chép, 1 thất bại')
   })
 
   it('a job can be cancelled from the UI', async () => {
@@ -283,9 +283,9 @@ describe('copy, move and delete jobs', () => {
     const sid = await connect()
     const a = await finished(ok(await files.delete(OWNER, LOCAL_SESSION, [join(home, 'local.txt')])).jobId)
     expect(trashed).toEqual([join(home, 'local.txt')])
-    expect(a.summary).toBe('1 deleted (moved to the trash)')
+    expect(a.summary).toBe('1 đã xóa (đã chuyển vào thùng rác)')
     const b = await finished(ok(await files.delete(OWNER, sid, ['/remote.txt'])).jobId)
-    expect(b.summary).toBe('1 deleted')
+    expect(b.summary).toBe('1 đã xóa')
     expect(await readdir(remote)).toEqual([])
   })
 
@@ -348,15 +348,15 @@ describe('folder sync between two panes', () => {
   it('refuses folders that are the same or nested, and expired or foreign comparisons', async () => {
     await mkdir(join(home, 'site/inner'), { recursive: true })
     const cmp = (l: string, r: string) => files.syncCompare(OWNER, { left: { sessionId: LOCAL_SESSION, path: l }, right: { sessionId: LOCAL_SESSION, path: r }, compare: 'quick', ignore: [] })
-    expect(fail(await cmp(join(home, 'site'), join(home, 'site')))).toMatch(/same, or one is inside/)
-    expect(fail(await cmp(join(home, 'site'), join(home, 'site/inner')))).toMatch(/inside/)
-    expect(fail(await cmp(join(home, 'site/inner'), join(home, 'site')))).toMatch(/inside/)
-    expect(fail(await cmp(join(home, 'site'), join(home, 'nope')))).toMatch(/not a folder/)
+    expect(fail(await cmp(join(home, 'site'), join(home, 'site')))).toMatch(/trùng nhau, hoặc một thư mục nằm trong/)
+    expect(fail(await cmp(join(home, 'site'), join(home, 'site/inner')))).toMatch(/nằm trong/)
+    expect(fail(await cmp(join(home, 'site/inner'), join(home, 'site')))).toMatch(/nằm trong/)
+    expect(fail(await cmp(join(home, 'site'), join(home, 'nope')))).toMatch(/không phải là thư mục/)
     await mkdir(join(home, 'other'))
     const good = ok(await cmp(join(home, 'site'), join(home, 'other')))
-    expect(fail(await files.syncPreview(2, { compareId: good.compareId, mode: 'two-way', deleteExtras: false, overrides: {} }))).toMatch(/expired/)
-    expect(fail(await files.syncPreview(OWNER, { compareId: 'nope', mode: 'two-way', deleteExtras: false, overrides: {} }))).toMatch(/expired/)
-    expect(fail(await files.syncPreview(OWNER, { compareId: good.compareId, mode: 'sideways', deleteExtras: false, overrides: {} }))).toMatch(/Choose how/)
+    expect(fail(await files.syncPreview(2, { compareId: good.compareId, mode: 'two-way', deleteExtras: false, overrides: {} }))).toMatch(/hết hạn/)
+    expect(fail(await files.syncPreview(OWNER, { compareId: 'nope', mode: 'two-way', deleteExtras: false, overrides: {} }))).toMatch(/hết hạn/)
+    expect(fail(await files.syncPreview(OWNER, { compareId: good.compareId, mode: 'sideways', deleteExtras: false, overrides: {} }))).toMatch(/chọn cách đồng bộ/)
   })
 
   it('ignore patterns keep things out of the comparison; nothing to do is said plainly', async () => {
@@ -365,7 +365,7 @@ describe('folder sync between two panes', () => {
     expect(cmp.items.map((i) => i.rel)).toEqual(['keep.txt'])
     await finished(ok(await files.syncRun(OWNER, { compareId: cmp.compareId, mode: 'mirror-ltr', deleteExtras: false, overrides: {} })).jobId)
     const again = ok(await files.syncCompare(OWNER, { left: { sessionId: LOCAL_SESSION, path: join(home, 'site') }, right: { sessionId: LOCAL_SESSION, path: join(home, 'other') }, compare: 'quick', ignore: ['node_modules'] }))
-    expect(fail(await files.syncRun(OWNER, { compareId: again.compareId, mode: 'mirror-ltr', deleteExtras: false, overrides: {} }))).toBe('Nothing to sync')
+    expect(fail(await files.syncRun(OWNER, { compareId: again.compareId, mode: 'mirror-ltr', deleteExtras: false, overrides: {} }))).toBe('Không có gì để đồng bộ')
   })
 })
 
@@ -441,8 +441,8 @@ describe('editing a remote file', () => {
   it('refuses things that are not editable files, or are too big, and other windows cannot close mine', async () => {
     await mkdir(join(remote, 'dir'))
     const sid = await connect()
-    expect(fail(await files.open(OWNER, sid, '/dir'))).toMatch(/Only files/)
-    expect(fail(await files.open(OWNER, sid, '/missing'))).toMatch(/Only files/)
+    expect(fail(await files.open(OWNER, sid, '/dir'))).toMatch(/Chỉ có thể sửa file/)
+    expect(fail(await files.open(OWNER, sid, '/missing'))).toMatch(/Chỉ có thể sửa file/)
     await put(remote, 'f', 'x')
     ok(await files.open(OWNER, sid, '/f'))
     await files.closeEdit(2, files.listEdits(OWNER)[0]!.id, true)
@@ -470,7 +470,7 @@ describe('window shutdown', () => {
     ok(await files.open(OWNER, sid, '/f'))
     await files.closeOwnedBy(OWNER)
     expect(files.listEdits(OWNER)).toEqual([])
-    expect(fail(await files.list(OWNER, sid, '/'))).toMatch(/no longer open/)
+    expect(fail(await files.list(OWNER, sid, '/'))).toMatch(/không còn mở/)
     await until(() => server.connectionCount() === 0, 'all connections closed')
   })
 })

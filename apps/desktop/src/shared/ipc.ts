@@ -265,6 +265,17 @@ export interface FileSyncStatus {
   devices: number
 }
 
+export interface AutoBackupStatus {
+  enabled: boolean
+  /** Where backups are written. */
+  dir: string
+  /** The person chose this folder (otherwise it is the app's own). */
+  customDir: boolean
+  lastBackupAt?: number
+  lastFile?: string
+  error?: string
+}
+
 export interface DriveClientSettings {
   clientId: string
   clientSecret?: string
@@ -320,6 +331,12 @@ export const Channels = {
   driveCancel: 'drive:cancel',
   driveDisconnect: 'drive:disconnect',
   driveSyncNow: 'drive:sync-now',
+  autoBackupStatus: 'autobackup:status',
+  autoBackupEnable: 'autobackup:enable',
+  autoBackupFolder: 'autobackup:folder',
+  autoBackupReset: 'autobackup:reset',
+  autoBackupNow: 'autobackup:now',
+  autoBackupStatusEvent: 'autobackup:status-event',
   fileSyncStatus: 'filesync:status',
   fileSyncExport: 'filesync:export',
   fileSyncImport: 'filesync:import',
@@ -425,6 +442,18 @@ export interface FileSyncApi {
   onStatus(listener: (s: FileSyncStatus) => void): () => void
 }
 
+export interface AutoBackupApi {
+  status(): Promise<AutoBackupStatus>
+  /** A backup is written each time a new host appears. */
+  setEnabled(enabled: boolean): Promise<Result>
+  /** Pick the folder backups go to. `error` is empty when the person cancelled. */
+  chooseFolder(): Promise<Result>
+  /** Go back to the app's own folder. */
+  resetFolder(): Promise<Result>
+  backupNow(): Promise<Result>
+  onStatus(listener: (s: AutoBackupStatus) => void): () => void
+}
+
 export interface MymiusApi {
   appInfo(): Promise<AppInfo>
   /** Makes native dialogs and menus follow the chosen appearance. */
@@ -438,4 +467,5 @@ export interface MymiusApi {
   files: FilesApi
   drive: DriveApi
   fileSync: FileSyncApi
+  autoBackup: AutoBackupApi
 }

@@ -134,7 +134,7 @@ describe('adding a second device', () => {
     const { drive } = await signIn()
     await expect(restoreVault(drive, new VaultStore(join(dir, 'x.json'), { kdf: FAST }))).rejects.toBeInstanceOf(NoRemoteVaultError)
     const a = await device('a', { create: true }); await a.sync.syncNow()
-    await expect(restoreVault(a.drive, a.store)).rejects.toThrow(/already exists/)
+    await expect(restoreVault(a.drive, a.store)).rejects.toThrow(/đã tồn tại/)
   })
 
   it('a device that made its own vault first is not silently merged: the two vaults are kept apart', async () => {
@@ -349,7 +349,7 @@ describe('when the network or Google misbehaves', () => {
     g.control.expireAccessTokens(); g.control.revokeAllGrants()
     await expect(a.sync.syncNow()).rejects.toThrow()
     expect(a.sync.status.phase).toBe('needs-auth')
-    expect(a.sync.status.error).toMatch(/Sign in again/)
+    expect(a.sync.status.error).toMatch(/đăng nhập lại/)
     a.sync.start()
     await new Promise((r) => setTimeout(r, 100))
     const before = g.stats.driveRequests
@@ -362,7 +362,7 @@ describe('when the network or Google misbehaves', () => {
     const { a } = await pair()
     await hosts(a.store).put(host('new'))
     g.control.setQuotaFull(true)
-    await expect(a.sync.syncNow()).rejects.toThrow(/storage is full/)
+    await expect(a.sync.syncNow()).rejects.toThrow(/đã đầy/)
     expect(a.sync.status).toMatchObject({ phase: 'error', retryAt: 1_000_000 + 3_600_000 })
     g.control.setQuotaFull(false)
     await a.sync.syncNow()

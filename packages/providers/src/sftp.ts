@@ -180,7 +180,7 @@ export class SftpProvider implements FileSystemProvider {
     for (let cur = path; cur !== '/' && cur !== '.' && cur !== ''; cur = posix.dirname(cur)) {
       const st = await this.stat(cur)
       if (st) {
-        if (st.kind !== 'directory') throw new Error(`Not a directory: ${cur}`)
+        if (st.kind !== 'directory') throw new Error(`Không phải thư mục: ${cur}`)
         break
       }
       missing.push(cur)
@@ -230,7 +230,7 @@ export class SftpProvider implements FileSystemProvider {
   }
 
   async hash(path: string, _algorithm: 'sha256'): Promise<string> {
-    if (!this.hashCommand) throw new Error('Server-side hashing is not available on this server')
+    if (!this.hashCommand) throw new Error('Server này không hỗ trợ tính hash phía server')
     const r = await this.exec(`${this.hashCommand} ${shellQuote(path)}`)
     const hex = r.stdout.trim().split(/\s+/)[0] ?? ''
     if (r.code !== 0 || !/^[0-9a-f]{64}$/.test(hex)) throw new Error(`Remote hash failed: ${r.stderr.trim() || `exit ${r.code}`}`)

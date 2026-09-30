@@ -19,12 +19,12 @@ async function hopFromRequest(raw: unknown): Promise<{ hop: ResolvedHost; cols: 
       return { hop: { ...base, auth: { type: 'password', password: req.auth.password } }, cols: req.cols, rows: req.rows }
     case 'key': {
       const keyPath = req.auth.keyPath
-      const privateKey = await readFile(expandHome(keyPath), 'utf8').catch(() => { throw new Error(`Cannot read the key file ${keyPath}`) })
+      const privateKey = await readFile(expandHome(keyPath), 'utf8').catch(() => { throw new Error(`Không đọc được file khóa ${keyPath}`) })
       return { hop: { ...base, auth: { type: 'key', privateKey, ...(req.auth.passphrase ? { passphrase: req.auth.passphrase } : {}) } }, cols: req.cols, rows: req.rows }
     }
     case 'agent': {
       const socket = defaultSshAgent()
-      if (!socket) throw new Error('No ssh-agent found (SSH_AUTH_SOCK is not set)')
+      if (!socket) throw new Error('Không tìm thấy ssh-agent (chưa đặt SSH_AUTH_SOCK)')
       return { hop: { ...base, auth: { type: 'agent', socket } }, cols: req.cols, rows: req.rows }
     }
   }
@@ -33,7 +33,7 @@ async function hopFromRequest(raw: unknown): Promise<{ hop: ResolvedHost; cols: 
 function size(raw: unknown): { cols: number; rows: number } {
   const r = (raw ?? {}) as Record<string, unknown>
   const ok = (n: unknown): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 1 && n <= 1000
-  if (!ok(r.cols) || !ok(r.rows)) throw new Error('Invalid terminal size')
+  if (!ok(r.cols) || !ok(r.rows)) throw new Error('Kích thước terminal không hợp lệ')
   return { cols: r.cols, rows: r.rows }
 }
 

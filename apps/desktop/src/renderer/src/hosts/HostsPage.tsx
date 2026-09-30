@@ -71,7 +71,7 @@ export function HostsPage({ onConnect }: { onConnect(host: HostSummary): void })
         <button className="primary" onClick={() => setView({ kind: 'edit' })}>New host</button>
       </div>
       {error && <p className="error" role="alert">{error}</p>}
-      {hosts.length === 0 && !error && <p className="empty">No saved hosts yet. Add one to connect with a click.</p>}
+      {hosts.length === 0 && !error && <p className="empty">Chưa có host nào được lưu. Hãy thêm một host để kết nối chỉ với một cú nhấp.</p>}
       <div className="hostlist">
         {groups.map(([group, list]) => (
           <section key={group}>

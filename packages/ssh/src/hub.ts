@@ -41,7 +41,7 @@ export class TerminalHub {
     if (this.entries.size >= (this.opts.maxSessions ?? 64)) {
       session.close()
       onDispose?.()
-      throw new Error('Too many open terminals')
+      throw new Error('Đang mở quá nhiều terminal')
     }
     const id = randomUUID()
     const flow = new FlowControl({ pause: () => session.pause(), resume: () => session.resume() })

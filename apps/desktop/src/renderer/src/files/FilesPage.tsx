@@ -77,13 +77,13 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
     if (job.state !== 'running' && !settled.current.has(job.id)) {
       settled.current.add(job.id)
       refreshBoth()
-      if (job.state === 'failed') say(job.summary ?? 'The operation failed', true)
+      if (job.state === 'failed') say(job.summary ?? 'Thao tác thất bại', true)
     }
   }), [refreshBoth, say])
   useEffect(() => window.mymius.files.edits.onEvent((e) => {
     setEdits((cur) => (e.state === 'closed' ? cur.filter((x) => x.id !== e.id) : [e, ...cur.filter((x) => x.id !== e.id)]))
-    if (e.state === 'unsynced') say(`${e.name} was NOT uploaded: the server copy changed. Your edits are kept on this computer.`, true)
-    if (e.state === 'error') say(`${e.name}: ${e.message ?? 'upload failed'}`, true)
+    if (e.state === 'unsynced') say(`${e.name} CHƯA được tải lên: bản trên server đã thay đổi. Chỉnh sửa của bạn vẫn được giữ trên máy này.`, true)
+    if (e.state === 'error') say(`${e.name}: ${e.message ?? 'tải lên thất bại'}`, true)
   }), [say])
 
   // ---- dialogs as promises ----
@@ -120,7 +120,7 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
   const other = (i: 0 | 1): 0 | 1 => (i === 0 ? 1 : 0)
 
   const transfer = useCallback(async (mode: 'copy' | 'move', fromSession: string, paths: string[], toSession: string, toDir: string): Promise<void> => {
-    if (paths.length === 0) return say('Select something first')
+    if (paths.length === 0) return say('Hãy chọn một mục trước')
     const req = { fromSession, paths, toSession, toDir }
     const c = await window.mymius.files.conflicts(req)
     if (!c.ok) return say(c.error, true)
@@ -152,7 +152,7 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
 
   const rename = async (): Promise<void> => {
     const s = panes[active]
-    if (!s.session || s.selected.length !== 1) return say('Select one item to rename')
+    if (!s.session || s.selected.length !== 1) return say('Hãy chọn đúng một mục để đổi tên')
     const path = s.selected[0]!
     const current = path.split(/[\\/]/).pop() ?? ''
     const name = await ask<string | null>((resolve) => ({ kind: 'name', title: 'Rename', initial: current, action: 'Rename', resolve }))
@@ -164,7 +164,7 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
 
   const remove = async (): Promise<void> => {
     const s = panes[active]
-    if (!s.session || s.selected.length === 0) return say('Select something first')
+    if (!s.session || s.selected.length === 0) return say('Hãy chọn một mục trước')
     const ok = await ask<boolean>((resolve) => ({ kind: 'delete', count: s.selected.length, local: s.session!.kind === 'local', resolve }))
     if (!ok) return
     const r = await window.mymius.files.delete(s.session.id, s.selected)
@@ -177,7 +177,7 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
     if (!s) return
     const r = await window.mymius.files.open(s.id, entry.path)
     if (!r.ok) say(r.error, true)
-    else if (r.how === 'editing') say(`Editing ${entry.name}. Save it in your editor and it uploads automatically.`)
+    else if (r.how === 'editing') say(`Đang sửa ${entry.name}. Bấm lưu trong trình soạn thảo là file tự động được tải lên.`)
   }
 
   const onDropItems = (target: 0 | 1, payload: DragPayload, dir: string, move: boolean): void => {
@@ -262,8 +262,8 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
             <button className="primary" onClick={() => dialog.resolve('overwrite')}>Replace</button>
           </>}
         >
-          <p>{dialog.names.length === 1 ? `"${dialog.names[0]}" already exists` : `${dialog.names.length} items already exist`} in the destination:</p>
-          <ul className="names">{dialog.names.slice(0, 6).map((n) => <li key={n}>{n}</li>)}{dialog.names.length > 6 && <li>…and {dialog.names.length - 6} more</li>}</ul>
+          <p>{dialog.names.length === 1 ? `"${dialog.names[0]}" đã tồn tại` : `${dialog.names.length} mục đã tồn tại`} ở thư mục đích:</p>
+          <ul className="names">{dialog.names.slice(0, 6).map((n) => <li key={n}>{n}</li>)}{dialog.names.length > 6 && <li>…và {dialog.names.length - 6} mục nữa</li>}</ul>
         </Modal>
       )}
 
@@ -276,7 +276,7 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
             <button className="danger" onClick={() => dialog.resolve(true)}>{dialog.local ? 'Move to trash' : 'Delete permanently'}</button>
           </>}
         >
-          <p>{dialog.local ? 'They will be moved to the trash and can be restored.' : 'This is on a server, which has no trash. They cannot be recovered.'}</p>
+          <p>{dialog.local ? 'Các mục sẽ được chuyển vào thùng rác và có thể khôi phục.' : 'Các mục này nằm trên server, nơi không có thùng rác. Sau khi xóa sẽ không lấy lại được.'}</p>
         </Modal>
       )}
 

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import { Channels, type DriveStatus, type EditInfo, type FileSyncStatus, type JobState, type MymiusApi, type TerminalDataEvent, type TerminalExitEvent, type VaultStatus } from '../shared/ipc'
+import { Channels, type DriveStatus, type AutoBackupStatus, type EditInfo, type FileSyncStatus, type JobState, type MymiusApi, type TerminalDataEvent, type TerminalExitEvent, type VaultStatus } from '../shared/ipc'
 
 function subscribe<T>(channel: string, listener: (e: T) => void): () => void {
   const handler = (_e: IpcRendererEvent, payload: T): void => listener(payload)
@@ -39,6 +39,14 @@ const api: MymiusApi = {
     list: () => ipcRenderer.invoke(Channels.keysList),
     import: (path, name, passphrase) => ipcRenderer.invoke(Channels.keysImport, path, name, passphrase),
     delete: (id) => ipcRenderer.invoke(Channels.keysDelete, id)
+  },
+  autoBackup: {
+    status: () => ipcRenderer.invoke(Channels.autoBackupStatus),
+    setEnabled: (enabled) => ipcRenderer.invoke(Channels.autoBackupEnable, enabled),
+    chooseFolder: () => ipcRenderer.invoke(Channels.autoBackupFolder),
+    resetFolder: () => ipcRenderer.invoke(Channels.autoBackupReset),
+    backupNow: () => ipcRenderer.invoke(Channels.autoBackupNow),
+    onStatus: (l) => subscribe<AutoBackupStatus>(Channels.autoBackupStatusEvent, l)
   },
   fileSync: {
     status: () => ipcRenderer.invoke(Channels.fileSyncStatus),

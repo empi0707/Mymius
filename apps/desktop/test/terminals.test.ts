@@ -116,7 +116,7 @@ describe('opening a saved host', () => {
   it('declining an unknown host key stops the connection', async () => {
     const s = await serve()
     trust = false
-    expect(errOf(await open(await saveHost(s)))).toMatch(/not trusted/)
+    expect(errOf(await open(await saveHost(s)))).toMatch(/chưa được tin cậy/)
     expect(s.shells).toHaveLength(0)
   })
 
@@ -124,7 +124,7 @@ describe('opening a saved host', () => {
     const s = await serve()
     const h = await saveHost(s)
     await svc.lock()
-    expect(errOf(await open(h))).toMatch(/locked/)
+    expect(errOf(await open(h))).toMatch(/đang khóa/)
     expect(s.connectionCount()).toBe(0)
   })
 
@@ -132,9 +132,9 @@ describe('opening a saved host', () => {
     const s = await serve()
     const h = await saveHost(s)
     await svc.deleteHost(h)
-    expect(errOf(await open(h))).toMatch(/no longer exists/)
+    expect(errOf(await open(h))).toMatch(/không còn tồn tại/)
     expect(errOf(await open('host:nope'))).toBeTruthy()
-    expect(errOf(await terminals.open(1, { hostId: h, cols: 0, rows: 30 }))).toMatch(/size/)
+    expect(errOf(await terminals.open(1, { hostId: h, cols: 0, rows: 30 }))).toMatch(/Kích thước/)
     expect(errOf(await terminals.open(1, { hostId: 42, cols: 80, rows: 24 }))).toBeTruthy()
   })
 

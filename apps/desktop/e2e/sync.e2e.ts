@@ -75,9 +75,9 @@ describe('device one: turning sync on', () => {
   })
 
   it('shows it is up to date, and published only unreadable files', async () => {
-    await one.page.locator('[data-testid=drive-phase]:has-text("up to date")').waitFor({ timeout: 15_000 })
-    expect(await one.page.textContent('[data-testid=drive-line]')).toMatch(/Last synced.*no other devices yet/)
-    expect(await one.page.textContent('[data-testid=sync-line]')).toMatch(/Synced/)
+    await one.page.locator('[data-testid=drive-phase]:has-text("đã cập nhật")').waitFor({ timeout: 15_000 })
+    expect(await one.page.textContent('[data-testid=drive-line]')).toMatch(/Đồng bộ lần cuối.*chưa có thiết bị khác/)
+    expect(await one.page.textContent('[data-testid=sync-line]')).toMatch(/Đã đồng bộ/)
     expect(filesOnDrive()).toHaveLength(2)
     const everything = JSON.stringify(g.control.files())
     for (const secret of ['shared-box', 'pw-only-on-servers', 'root', PASS, '2222']) expect(everything).not.toContain(secret)
@@ -85,7 +85,7 @@ describe('device one: turning sync on', () => {
 
   it('kept the Google sign-in sealed inside the vault file', async () => {
     const disk = await readFile(join(one.profile, 'vault.json'), 'utf8')
-    expect(disk).not.toContain('rt-')
+    expect(disk).not.toMatch(/rt-[0-9a-f]{24}/) // a real refresh token (a bare 'rt-' can occur by chance in base64)
     expect(disk).not.toContain(g.clientSecret)
     const settings = await readFile(join(one.profile, 'drive-settings.json'), 'utf8')
     expect(JSON.parse(settings).clientId).toBe(g.clientId) // configuration, not a secret
@@ -104,7 +104,7 @@ describe('device two: restoring from Google Drive', () => {
   it('a refused consent screen is explained and nothing changes', async () => {
     g.control.denyNextConsent()
     await two.page.click('button:has-text("Sign in with Google")')
-    await two.page.waitForSelector('[data-testid=restore] [role=alert]:has-text("not granted")', { timeout: 15_000 })
+    await two.page.waitForSelector('[data-testid=restore] [role=alert]:has-text("chưa được cấp")', { timeout: 15_000 })
     await two.page.waitForSelector('h2:has-text("Create your vault")')
   })
 
@@ -114,7 +114,7 @@ describe('device two: restoring from Google Drive', () => {
     expect(await two.page.textContent('[data-testid=restored-hint]')).toContain('user@example.com')
     await two.page.fill(vis('input[name=passphrase]'), 'not the passphrase')
     await two.page.click('button:has-text("Unlock")')
-    await two.page.waitForSelector('[role=alert]:has-text("Wrong passphrase")')
+    await two.page.waitForSelector('[role=alert]:has-text("Sai passphrase")')
     await two.page.fill(vis('input[name=passphrase]'), PASS)
     await two.page.click('button:has-text("Unlock")')
     await until(async () => (await hostsOn(two)).includes('shared-box'), 'the host from device one to appear (nobody clicked anything)')
@@ -123,9 +123,9 @@ describe('device two: restoring from Google Drive', () => {
 
   it('both devices now list each other', async () => {
     await H.goTo(two.page, 'Settings')
-    await two.page.locator('[data-testid=drive-line]:has-text("1 other device")').waitFor({ timeout: 15_000 })
+    await two.page.locator('[data-testid=drive-line]:has-text("1 thiết bị khác")').waitFor({ timeout: 15_000 })
     await H.goTo(one.page, 'Settings')
-    await one.page.locator('[data-testid=drive-line]:has-text("1 other device")').waitFor({ timeout: 15_000 })
+    await one.page.locator('[data-testid=drive-line]:has-text("1 thiết bị khác")').waitFor({ timeout: 15_000 })
     expect(filesOnDrive()).toHaveLength(3)
   })
 })
@@ -150,7 +150,7 @@ describe('edits travel with nobody touching anything', () => {
   it('what reaches the other device is usable there: the merged host connects with its stored password', async () => {
     // The password made the trip encrypted; device two can read it, which shows in the editor's "saved" hint.
     await two.page.click('button[aria-label="Edit from-two"]')
-    expect(await two.page.getAttribute(vis('input[name=password]'), 'placeholder')).toMatch(/leave empty to keep/)
+    expect(await two.page.getAttribute(vis('input[name=password]'), 'placeholder')).toMatch(/để trống nếu muốn giữ nguyên/)
     await two.page.click(vis('button:has-text("Cancel")'))
   })
 })
@@ -161,7 +161,7 @@ describe('a new passphrase', () => {
     await one.page.fill(vis('input[name=newPassphrase]'), NEW_PASS)
     await one.page.fill(vis('input[name=newPassphrase2]'), NEW_PASS)
     await one.page.click('button:has-text("Change passphrase")')
-    await one.page.waitForSelector('[role=status]:has-text("Passphrase changed")')
+    await one.page.waitForSelector('[role=status]:has-text("Đã đổi passphrase")')
     const vaultOf = async (d: { profile: string }) => JSON.parse(await readFile(join(d.profile, 'vault.json'), 'utf8')).meta.rev as number
     await until(async () => (await vaultOf(two)) === 2, 'device two to adopt the new vault metadata')
     await two.app.close()
@@ -169,7 +169,7 @@ describe('a new passphrase', () => {
     await two.page.waitForSelector('h2:has-text("Unlock your vault")')
     await two.page.fill(vis('input[name=passphrase]'), PASS)
     await two.page.click('button:has-text("Unlock")')
-    await two.page.waitForSelector('[role=alert]:has-text("Wrong passphrase")')
+    await two.page.waitForSelector('[role=alert]:has-text("Sai passphrase")')
     await two.page.fill(vis('input[name=passphrase]'), NEW_PASS)
     await two.page.click('button:has-text("Unlock")')
     await two.page.waitForSelector('[data-testid="host-from-two"]')
@@ -178,7 +178,7 @@ describe('a new passphrase', () => {
   it('and after that restart sync resumes by itself on device two, with no new sign-in', async () => {
     expect(await H.externalUrls(two.app)).toEqual([])
     await H.goTo(two.page, 'Settings')
-    await two.page.locator('[data-testid=drive-phase]:has-text("up to date")').waitFor({ timeout: 15_000 })
+    await two.page.locator('[data-testid=drive-phase]:has-text("đã cập nhật")').waitFor({ timeout: 15_000 })
   })
 })
 
@@ -187,12 +187,12 @@ describe('losing and regaining access', () => {
     g.control.expireAccessTokens()
     g.control.revokeAllGrants()
     await H.goTo(one.page, 'Settings')
-    await one.page.locator('[data-testid=drive-phase]:has-text("sign in needed")').waitFor({ timeout: 20_000 })
-    await one.page.locator('[role=alert]:has-text("Sign in again")').waitFor()
-    expect(await one.page.textContent('[data-testid=sync-line]')).toMatch(/problem/)
+    await one.page.locator('[data-testid=drive-phase]:has-text("cần đăng nhập lại")').waitFor({ timeout: 20_000 })
+    await one.page.locator('[role=alert]:has-text("đăng nhập lại")').waitFor()
+    expect(await one.page.textContent('[data-testid=sync-line]')).toMatch(/sự cố/)
     await one.page.screenshot({ path: process.env.E2E_SHOT_SYNC_ERROR ?? join(tmp, 'needs-auth.png') })
     await one.page.click('button:has-text("Sign in again")')
-    await one.page.locator('[data-testid=drive-phase]:has-text("up to date")').waitFor({ timeout: 20_000 })
+    await one.page.locator('[data-testid=drive-phase]:has-text("đã cập nhật")').waitFor({ timeout: 20_000 })
     await one.page.screenshot({ path: process.env.E2E_SHOT_SYNC_OK ?? join(tmp, 'connected.png') })
   })
 })
@@ -215,12 +215,12 @@ describe('disconnecting', () => {
   it('signing out here works even if Google no longer accepts this device, and the card says what it could not do', async () => {
     // Every sign-in was revoked earlier; device two has not signed in again.
     await H.goTo(two.page, 'Settings')
-    await two.page.locator('[data-testid=drive-phase]:has-text("sign in needed")').waitFor({ timeout: 20_000 })
+    await two.page.locator('[data-testid=drive-phase]:has-text("cần đăng nhập lại")').waitFor({ timeout: 20_000 })
     await two.page.click('button:has-text("Sign out…")')
     await two.page.check(vis('input[name=deleteRemote]'))
     await two.page.click('button:has-text("Sign out")>>nth=-1')
     await two.page.waitForSelector('button:has-text("Sign in with Google")')
-    await two.page.waitForSelector('[role=alert]:has-text("could not be erased")')
+    await two.page.waitForSelector('[role=alert]:has-text("chưa xóa được")')
     expect(filesOnDrive()).toHaveLength(2) // untouched: the shared metadata and device two's own file (device one's left earlier)
     expect(filesOnDrive()).toContain(META_KEEP)
   })

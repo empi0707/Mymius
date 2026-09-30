@@ -285,7 +285,7 @@ export class DriveSync extends EventEmitter {
 /** There is nothing to restore: this Google account has no vault from this app. */
 export class NoRemoteVaultError extends Error {
   constructor() {
-    super('No vault from this app was found in that Google account')
+    super('Không tìm thấy vault của ứng dụng này trong tài khoản Google đó')
     this.name = 'NoRemoteVaultError'
   }
 }

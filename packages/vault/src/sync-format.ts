@@ -77,12 +77,12 @@ const isRecord = (r: unknown): r is SyncRecord => {
 }
 
 function parseJson(text: string): Record<string, unknown> {
-  if (Buffer.byteLength(text) > MAX_SYNC_FILE_BYTES) throw new SyncFormatError('too-large', 'The file is too large')
+  if (Buffer.byteLength(text) > MAX_SYNC_FILE_BYTES) throw new SyncFormatError('too-large', 'File quá lớn')
   try {
     const v: unknown = JSON.parse(text)
     if (v && typeof v === 'object' && !Array.isArray(v)) return v as Record<string, unknown>
   } catch { /* fall through */ }
-  throw new SyncFormatError('invalid', 'The file is not valid')
+  throw new SyncFormatError('invalid', 'File không hợp lệ')
 }
 
 /** Parse and authenticate a device file. Throws SyncFormatError for anything that is not exactly what we wrote. */
@@ -90,11 +90,11 @@ export function parseDeviceFile(text: string, dataKey: Buffer): { deviceId: stri
   const f = parseJson(text)
   if (f.format !== SYNC_FORMAT || typeof f.deviceId !== 'string' || !/^[0-9a-f]{4,32}$/.test(f.deviceId) ||
       !Array.isArray(f.records) || typeof f.mac !== 'string' || typeof f.updatedAt !== 'number' || !f.records.every(isRecord)) {
-    throw new SyncFormatError('invalid', 'The file is not a valid device file')
+    throw new SyncFormatError('invalid', 'File không phải file thiết bị hợp lệ')
   }
   const records = sortedRecords(f.records as SyncRecord[])
   if (!sameMac(f.mac, mac(dataKey, 'device', `${f.deviceId}\n${canonicalize(records)}`))) {
-    throw new SyncFormatError('tampered', 'The file failed its integrity check')
+    throw new SyncFormatError('tampered', 'File không qua được kiểm tra toàn vẹn')
   }
   return { deviceId: f.deviceId, records, updatedAt: f.updatedAt }
 }
@@ -108,7 +108,7 @@ function asMeta(m: unknown): VaultMeta {
   if (!x || x.version !== 1 || typeof x.wrappedByPassphrase !== 'string' || typeof x.wrappedByRecovery !== 'string' ||
       typeof x.check !== 'string' || typeof x.rev !== 'number' || !Number.isInteger(x.rev) || x.rev < 1 || !x.kdf ||
       x.kdf.alg !== 'argon2id' || typeof x.kdf.salt !== 'string') {
-    throw new SyncFormatError('invalid', 'The vault metadata is not valid')
+    throw new SyncFormatError('invalid', 'Metadata của vault không hợp lệ')
   }
   return x as VaultMeta
 }
@@ -116,10 +116,10 @@ function asMeta(m: unknown): VaultMeta {
 /** Without a key (a device that has no vault yet) this only checks the shape: the caller must verify later. */
 export function parseMetaFile(text: string, dataKey?: Buffer): { meta: VaultMeta; verified: boolean } {
   const f = parseJson(text)
-  if (f.format !== SYNC_FORMAT || typeof f.mac !== 'string') throw new SyncFormatError('invalid', 'The file is not a valid vault file')
+  if (f.format !== SYNC_FORMAT || typeof f.mac !== 'string') throw new SyncFormatError('invalid', 'File không phải file vault hợp lệ')
   const meta = asMeta(f.meta)
   if (!dataKey) return { meta, verified: false }
-  if (!sameMac(f.mac, mac(dataKey, 'meta', canonicalize(meta)))) throw new SyncFormatError('tampered', 'The file failed its integrity check')
+  if (!sameMac(f.mac, mac(dataKey, 'meta', canonicalize(meta)))) throw new SyncFormatError('tampered', 'File không qua được kiểm tra toàn vẹn')
   return { meta, verified: true }
 }
 

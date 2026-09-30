@@ -23,15 +23,15 @@ export function FileSyncCard(): React.JSX.Element {
     <section className="card" data-testid="filesync-card">
       <h3>Backup and sync file</h3>
       <p className="hint">
-        Your vault as a single <code>.json</code> file, encrypted with your passphrase, so it is safe to keep anywhere. Save a backup, or point Mymius at a file inside a folder
-        that iCloud Drive, Dropbox, OneDrive, Syncthing or a NAS already syncs, and your devices stay in step without any account.
+        Vault của bạn được lưu thành một file <code>.json</code> duy nhất, đã mã hóa bằng passphrase nên có thể cất ở bất cứ đâu. Bạn có thể lưu một bản backup, hoặc chỉ cho Mymius một file nằm trong thư mục
+        mà iCloud Drive, Dropbox, OneDrive, Syncthing hay NAS đã đồng bộ sẵn, các thiết bị sẽ tự khớp nhau mà không cần tài khoản nào.
       </p>
 
       {linked && status && (
         <div data-testid="filesync-linked">
-          <div className="row"><code className="path" data-testid="filesync-path">{status.path}</code><span className="grow" /><span className={`badge ${status.phase}`} data-testid="filesync-phase">{status.phase === 'idle' ? 'up to date' : status.phase === 'locked' ? 'vault locked' : status.phase === 'error' ? 'problem' : status.phase}</span></div>
+          <div className="row"><code className="path" data-testid="filesync-path">{status.path}</code><span className="grow" /><span className={`badge ${status.phase}`} data-testid="filesync-phase">{status.phase === 'idle' ? 'đã cập nhật' : status.phase === 'locked' ? 'vault đang khóa' : status.phase === 'error' ? 'có sự cố' : 'đang đồng bộ'}</span></div>
           <p className="sub" data-testid="filesync-line">
-            {status.lastSyncAt ? `Last synced ${timeAgo(status.lastSyncAt)}` : 'Not synced yet'}{' · '}{status.devices === 0 ? 'no other devices yet' : `${status.devices} other device${status.devices === 1 ? '' : 's'}`}
+            {status.lastSyncAt ? `Đồng bộ lần cuối ${timeAgo(status.lastSyncAt)}` : 'Chưa đồng bộ'}{' · '}{status.devices === 0 ? 'chưa có thiết bị khác' : `${status.devices} thiết bị khác`}
           </p>
           {status.error && <p className="error" role="alert">{status.error}</p>}
           <div className="row">
@@ -44,13 +44,13 @@ export function FileSyncCard(): React.JSX.Element {
 
       {!linked && (
         <div className="row wrap">
-          <button className="secondary" disabled={busy} onClick={() => void act(() => api.link('create'), 'Now syncing with that file.')}>Create sync file…</button>
-          <button className="secondary" disabled={busy} onClick={() => void act(() => api.link('existing'), 'Now syncing with that file.')}>Use existing file…</button>
+          <button className="secondary" disabled={busy} onClick={() => void act(() => api.link('create'), 'Đã bắt đầu đồng bộ với file đó.')}>Create sync file…</button>
+          <button className="secondary" disabled={busy} onClick={() => void act(() => api.link('existing'), 'Đã bắt đầu đồng bộ với file đó.')}>Use existing file…</button>
         </div>
       )}
       <div className="row wrap">
-        <button className="secondary" disabled={busy} onClick={() => void act(() => api.exportBackup(), 'Backup saved.')}>Save backup…</button>
-        <button className="secondary" disabled={busy} onClick={() => void act(() => api.importBackup(), 'Backup merged into this vault.')}>Restore from backup…</button>
+        <button className="secondary" disabled={busy} onClick={() => void act(() => api.exportBackup(), 'Đã lưu backup.')}>Save backup…</button>
+        <button className="secondary" disabled={busy} onClick={() => void act(() => api.importBackup(), 'Đã gộp backup vào vault này.')}>Restore from backup…</button>
       </div>
       {message && <p className={message.error ? 'error' : 'hint'} role={message.error ? 'alert' : 'status'} data-testid="filesync-message">{message.text}</p>}
     </section>

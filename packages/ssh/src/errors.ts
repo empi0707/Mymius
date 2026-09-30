@@ -1,6 +1,6 @@
 export class HostKeyRejectedError extends Error {
   constructor(readonly host: string, readonly port: number, readonly fingerprint: string) {
-    super(`Host key for ${host}:${port} was not trusted (${fingerprint})`)
+    super(`Khóa của host ${host}:${port} chưa được tin cậy (${fingerprint})`)
     this.name = 'HostKeyRejectedError'
   }
 }
@@ -13,7 +13,7 @@ export class HostKeyChangedError extends Error {
     readonly expected: string,
     readonly actual: string
   ) {
-    super(`HOST KEY CHANGED for ${host}:${port}. Expected ${expected}, got ${actual}. Refusing to connect.`)
+    super(`KHÓA HOST ĐÃ THAY ĐỔI ở ${host}:${port}. Mong đợi ${expected}, nhận được ${actual}. Từ chối kết nối.`)
     this.name = 'HostKeyChangedError'
   }
 }

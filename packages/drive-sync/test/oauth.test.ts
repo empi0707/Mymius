@@ -146,7 +146,7 @@ describe('signing in', () => {
 
   it('a refused consent screen is reported', async () => {
     g.control.denyNextConsent()
-    await expect(authorize(cfg(), { openBrowser: g.browser })).rejects.toMatchObject({ name: 'OAuthDeniedError', message: expect.stringMatching(/not granted/) })
+    await expect(authorize(cfg(), { openBrowser: g.browser })).rejects.toMatchObject({ name: 'OAuthDeniedError', message: expect.stringMatching(/chưa được cấp/) })
   })
 
   it('a wrong client secret is reported and no credentials are returned', async () => {

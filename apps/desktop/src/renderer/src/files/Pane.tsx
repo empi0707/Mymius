@@ -193,8 +193,8 @@ export function Pane(p: PaneProps): React.JSX.Element {
             {p.places.map((pl) => <option key={pl.path} value={`place:${pl.path}`}>{pl.name}</option>)}
           </optgroup>
           <optgroup label="Saved hosts">
-            {hostOptions === null && <option disabled>Unlock the vault to see hosts</option>}
-            {hostOptions?.length === 0 && <option disabled>No saved hosts</option>}
+            {hostOptions === null && <option disabled>Mở khóa vault để xem các host</option>}
+            {hostOptions?.length === 0 && <option disabled>Chưa có host nào được lưu</option>}
             {hostOptions?.map((h) => <option key={h.id} value={`host:${h.id}`}>{h.name}</option>)}
           </optgroup>
         </select>
@@ -244,10 +244,10 @@ export function Pane(p: PaneProps): React.JSX.Element {
         onDrop={(e) => listing && onDrop(e, listing.path)}
         onClick={(e) => { if (e.target === e.currentTarget) p.onSelect([]) }}
       >
-        {p.status === 'connecting' && <div className="pane-msg">Connecting…</div>}
+        {p.status === 'connecting' && <div className="pane-msg">Đang kết nối…</div>}
         {p.status === 'error' && <div className="pane-msg error" role="alert">{p.error} <button className="link" onClick={p.onRetry}>Retry</button></div>}
         {p.status === 'ready' && error && <div className="pane-msg error" role="alert">{error} <button className="link" onClick={p.onRetry}>Retry</button></div>}
-        {p.status === 'ready' && !error && !loading && rows.length === 0 && <div className="pane-msg">This folder is empty</div>}
+        {p.status === 'ready' && !error && !loading && rows.length === 0 && <div className="pane-msg">Thư mục này trống</div>}
         <div style={{ height: v.totalHeight, position: 'relative' }}>
           {rows.slice(v.start, v.end).map((entry, k) => {
             const index = v.start + k

@@ -41,8 +41,8 @@ export function expandHome(p: string): string {
 }
 
 function friendly(err: unknown): string {
-  if (err instanceof VaultAuthError) return 'Wrong passphrase'
-  if (err instanceof VaultLockedError) return 'The vault is locked'
+  if (err instanceof VaultAuthError) return 'Sai passphrase'
+  if (err instanceof VaultLockedError) return 'Vault đang khóa'
   if (err instanceof WeakPassphraseError || err instanceof VaultCorruptError) return err.message
   return err instanceof Error ? err.message : String(err)
 }
@@ -109,26 +109,26 @@ export class VaultService {
 
   saveHost(id: unknown, input: unknown): Promise<Result<{ id: string }>> {
     return attempt(async () => {
-      if (id !== undefined && (typeof id !== 'string' || !id.startsWith(HOST_PREFIX))) throw new Error('Invalid host')
+      if (id !== undefined && (typeof id !== 'string' || !id.startsWith(HOST_PREFIX))) throw new Error('Host không hợp lệ')
       const existing = id ? this.hosts.get(id) : undefined
-      if (id && !existing) throw new Error('That host no longer exists')
+      if (id && !existing) throw new Error('Host đó không còn tồn tại')
       const profile = applyHostInput(existing, input)
 
       if (profile.jumpHostId !== undefined) {
-        if (!this.hosts.get(profile.jumpHostId)) throw new Error('The chosen jump host no longer exists')
+        if (!this.hosts.get(profile.jumpHostId)) throw new Error('Jump host đã chọn không còn tồn tại')
         const jumpOf = (h: string) => this.hosts.get(h)?.jumpHostId
-        if (wouldCreateJumpCycle(jumpOf, id ?? '(new)', profile.jumpHostId)) throw new Error('That jump host would make a loop')
+        if (wouldCreateJumpCycle(jumpOf, id ?? '(new)', profile.jumpHostId)) throw new Error('Jump host đó sẽ tạo thành vòng lặp')
       }
-      if (profile.auth.type === 'key' && !this.keys.get(profile.auth.keyId)) throw new Error('The chosen key no longer exists')
+      if (profile.auth.type === 'key' && !this.keys.get(profile.auth.keyId)) throw new Error('Khóa đã chọn không còn tồn tại')
       return { id: await this.hosts.put(profile, id) }
     })
   }
 
   deleteHost(id: unknown): Promise<Result> {
     return attempt(async () => {
-      if (typeof id !== 'string' || !id.startsWith(HOST_PREFIX)) throw new Error('Invalid host')
+      if (typeof id !== 'string' || !id.startsWith(HOST_PREFIX)) throw new Error('Host không hợp lệ')
       const users = this.hosts.list().filter((h) => h.value.jumpHostId === id).map((h) => h.value.name)
-      if (users.length) throw new Error(`Used as a jump host by: ${users.join(', ')}`)
+      if (users.length) throw new Error(`Đang được dùng làm jump host bởi: ${users.join(', ')}`)
       await this.hosts.remove(id)
       return {}
     })
@@ -148,8 +148,8 @@ export class VaultService {
   /** Read a key file from disk into the vault. The UI supplies only the path, never key text. */
   importKey(filePath: unknown, name: unknown, passphrase: unknown): Promise<Result<{ key: KeySummary }>> {
     return attempt(async () => {
-      if (typeof filePath !== 'string' || !filePath) throw new Error('Choose a key file')
-      const text = await this.deps.readTextFile(expandHome(filePath)).catch(() => { throw new Error('Cannot read that file') })
+      if (typeof filePath !== 'string' || !filePath) throw new Error('Hãy chọn một file khóa')
+      const text = await this.deps.readTextFile(expandHome(filePath)).catch(() => { throw new Error('Không đọc được file đó') })
       const pass = typeof passphrase === 'string' && passphrase ? passphrase : undefined
       const info = inspectPrivateKey(text, pass) // throws a user-facing message if unusable
       const label = typeof name === 'string' && name.trim() ? name.trim() : path.basename(filePath)
@@ -161,9 +161,9 @@ export class VaultService {
 
   deleteKey(id: unknown): Promise<Result> {
     return attempt(async () => {
-      if (typeof id !== 'string' || !id.startsWith(KEY_PREFIX)) throw new Error('Invalid key')
+      if (typeof id !== 'string' || !id.startsWith(KEY_PREFIX)) throw new Error('Khóa không hợp lệ')
       const users = this.hosts.list().filter((h) => h.value.auth.type === 'key' && h.value.auth.keyId === id).map((h) => h.value.name)
-      if (users.length) throw new Error(`Still used by: ${users.join(', ')}`)
+      if (users.length) throw new Error(`Vẫn đang được dùng bởi: ${users.join(', ')}`)
       await this.keys.remove(id)
       return {}
     })
@@ -174,26 +174,26 @@ export class VaultService {
   /** Credentials for a saved host, for the main process only. */
   readonly lookup: HostLookup = {
     resolve: async (id): Promise<ResolvedHost> => {
-      if (!id.startsWith(HOST_PREFIX)) throw new Error('Unknown host')
+      if (!id.startsWith(HOST_PREFIX)) throw new Error('Host không xác định')
       const h = this.hosts.get(id)
-      if (!h) throw new Error('That saved host no longer exists')
+      if (!h) throw new Error('Host đã lưu đó không còn tồn tại')
       const base = { id, name: h.name, host: h.host, port: h.port, username: h.username, ...(h.jumpHostId ? { jumpHostId: h.jumpHostId } : {}) }
       switch (h.auth.type) {
         case 'password':
           return { ...base, auth: { type: 'password', password: h.auth.password } }
         case 'key': {
           const key = this.keys.get(h.auth.keyId)
-          if (!key) throw new Error(`The key used by "${h.name}" was deleted`)
+          if (!key) throw new Error(`Khóa mà "${h.name}" dùng đã bị xóa`)
           return { ...base, auth: { type: 'key', privateKey: key.privateKey, ...(key.passphrase ? { passphrase: key.passphrase } : {}) } }
         }
         case 'keyFile': {
           const { path: keyPath, passphrase } = h.auth
-          const text = await this.deps.readTextFile(expandHome(keyPath)).catch(() => { throw new Error(`Cannot read the key file ${keyPath}`) })
+          const text = await this.deps.readTextFile(expandHome(keyPath)).catch(() => { throw new Error(`Không đọc được file khóa ${keyPath}`) })
           return { ...base, auth: { type: 'key', privateKey: text, ...(passphrase ? { passphrase } : {}) } }
         }
         case 'agent': {
           const socket = this.deps.agentSocket()
-          if (!socket) throw new Error('No ssh-agent found (SSH_AUTH_SOCK is not set)')
+          if (!socket) throw new Error('Không tìm thấy ssh-agent (chưa đặt SSH_AUTH_SOCK)')
           return { ...base, auth: { type: 'agent', socket } }
         }
       }
@@ -202,6 +202,6 @@ export class VaultService {
 }
 
 function str(v: unknown): string {
-  if (typeof v !== 'string') throw new Error('Invalid input')
+  if (typeof v !== 'string') throw new Error('Dữ liệu nhập không hợp lệ')
   return v
 }

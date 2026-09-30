@@ -31,26 +31,26 @@ const REMEMBER_KEY = 'vault-data-key'
 
 export class VaultCorruptError extends Error {
   constructor(detail: string) {
-    super(`The vault file is damaged (${detail}). It has not been modified.`)
+    super(`File vault bị hỏng (${detail}). File chưa bị thay đổi.`)
     this.name = 'VaultCorruptError'
   }
 }
 export class VaultLockedError extends Error {
   constructor() {
-    super('The vault is locked')
+    super('Vault đang khóa')
     this.name = 'VaultLockedError'
   }
 }
 export class WeakPassphraseError extends Error {
   constructor() {
-    super(`Use a passphrase of at least ${MIN_PASSPHRASE_LENGTH} characters`)
+    super(`Hãy dùng passphrase dài ít nhất ${MIN_PASSPHRASE_LENGTH} ký tự`)
     this.name = 'WeakPassphraseError'
   }
 }
 /** Records from another vault (different data key) were offered for merging. */
 export class VaultMismatchError extends Error {
   constructor() {
-    super('These records belong to a different vault')
+    super('Các bản ghi này thuộc về một vault khác')
     this.name = 'VaultMismatchError'
   }
 }
@@ -163,7 +163,7 @@ export class VaultStore extends EventEmitter {
   /** Create a new vault. Returns the recovery key, which is shown once and never stored. */
   async create(passphrase: string, opts: { remember?: boolean } = {}): Promise<{ recoveryKey: string }> {
     await this.load()
-    if (this.file) throw new Error('A vault already exists')
+    if (this.file) throw new Error('Vault đã tồn tại')
     if (passphrase.length < MIN_PASSPHRASE_LENGTH) throw new WeakPassphraseError()
     const created = await createVault(passphrase, this.opts.kdf)
     this.file = { format: 1, deviceId: randomBytes(6).toString('hex'), meta: created.meta, records: [] }
@@ -175,7 +175,7 @@ export class VaultStore extends EventEmitter {
 
   async unlock(passphrase: string, opts: { remember?: boolean } = {}): Promise<void> {
     await this.load()
-    if (!this.file) throw new Error('There is no vault yet')
+    if (!this.file) throw new Error('Chưa có vault')
     if (this.dataKey) return
     this.setKey(await unlockWithPassphrase(this.file.meta, passphrase))
     if (opts.remember) await this.remember()
@@ -183,7 +183,7 @@ export class VaultStore extends EventEmitter {
 
   async unlockWithRecoveryKey(recoveryKey: string, opts: { remember?: boolean } = {}): Promise<void> {
     await this.load()
-    if (!this.file) throw new Error('There is no vault yet')
+    if (!this.file) throw new Error('Chưa có vault')
     if (this.dataKey) return
     this.setKey(unlockWithRecoveryKey(this.file.meta, recoveryKey))
     if (opts.remember) await this.remember()
@@ -195,7 +195,7 @@ export class VaultStore extends EventEmitter {
    */
   async bootstrap(remote: { meta: VaultMeta; records: readonly SyncRecord[] }): Promise<void> {
     await this.load()
-    if (this.file) throw new Error('A vault already exists')
+    if (this.file) throw new Error('Vault đã tồn tại')
     this.file = parseVaultFile(
       JSON.stringify({ format: 1, deviceId: randomBytes(6).toString('hex'), meta: remote.meta, records: remote.records })
     )
@@ -307,7 +307,7 @@ export class VaultStore extends EventEmitter {
 
   /** Everything needed to replicate this vault elsewhere. All of it is ciphertext. */
   snapshot(): { meta: VaultMeta; records: SyncRecord[] } {
-    if (!this.file) throw new Error('There is no vault yet')
+    if (!this.file) throw new Error('Chưa có vault')
     return { meta: structuredClone(this.file.meta), records: structuredClone(this.file.records) }
   }
 
@@ -359,12 +359,12 @@ export class VaultStore extends EventEmitter {
   // ---- cloud sync files --------------------------------------------------------------------------
 
   get deviceId(): string {
-    if (!this.file) throw new Error('There is no vault yet')
+    if (!this.file) throw new Error('Chưa có vault')
     return this.file.deviceId
   }
 
   get metaRev(): number {
-    if (!this.file) throw new Error('There is no vault yet')
+    if (!this.file) throw new Error('Chưa có vault')
     return this.file.meta.rev
   }
 

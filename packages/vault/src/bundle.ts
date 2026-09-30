@@ -25,12 +25,12 @@ const invalid = (msg: string): SyncFormatError => new SyncFormatError('invalid',
 
 /** Checks the shape only; every part is authenticated against the vault key when it is used. */
 export function parseBundle(text: string): Bundle {
-  if (Buffer.byteLength(text) > MAX_SYNC_FILE_BYTES) throw new SyncFormatError('too-large', 'The file is too large')
+  if (Buffer.byteLength(text) > MAX_SYNC_FILE_BYTES) throw new SyncFormatError('too-large', 'File quá lớn')
   let v: unknown
-  try { v = JSON.parse(text) } catch { throw invalid('This is not a Mymius sync file') }
+  try { v = JSON.parse(text) } catch { throw invalid('Đây không phải file đồng bộ của Mymius') }
   const o = v as Partial<Bundle> | null
   if (!o || o.kind !== BUNDLE_KIND || o.version !== 1 || typeof o.exportedAt !== 'number' || !o.meta || !Array.isArray(o.devices) || o.devices.length > 100) {
-    throw invalid('This is not a Mymius sync file')
+    throw invalid('Đây không phải file đồng bộ của Mymius')
   }
   parseMetaFile(JSON.stringify(o.meta)) // shape of the metadata
   return o as Bundle

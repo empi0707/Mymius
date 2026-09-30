@@ -54,7 +54,7 @@ afterAll(async () => {
 describe('creating the vault', () => {
   it('starts on the setup screen and warns that there is no system keychain here', async () => {
     await page.waitForSelector('h2:has-text("Create your vault")')
-    await page.waitForSelector('.warn:has-text("No system keychain")')
+    await page.waitForSelector('.warn:has-text("không có kho khóa hệ thống")')
     expect(await page.locator(vis('input[name=remember]')).count()).toBe(0) // offering it would be a lie
   })
 
@@ -62,11 +62,11 @@ describe('creating the vault', () => {
     await page.fill(vis('input[name=passphrase]'), 'short')
     await page.fill(vis('input[name=passphrase2]'), 'short')
     await page.click('button:has-text("Create vault")')
-    await page.waitForSelector('[role=alert]:has-text("at least 10")')
+    await page.waitForSelector('[role=alert]:has-text("ít nhất 10")')
     await page.fill(vis('input[name=passphrase]'), PASS)
     await page.fill(vis('input[name=passphrase2]'), PASS + 'x')
     await page.click('button:has-text("Create vault")')
-    await page.waitForSelector('[role=alert]:has-text("do not match")')
+    await page.waitForSelector('[role=alert]:has-text("không khớp")')
     await expect(readFile(vaultFile())).rejects.toThrow()
   })
 
@@ -79,7 +79,7 @@ describe('creating the vault', () => {
     expect(await page.isDisabled('button:has-text("Continue")')).toBe(true)
     await page.check(vis('input[name=saved]'))
     await page.click('button:has-text("Continue")')
-    await page.waitForSelector('text=No saved hosts yet')
+    await page.waitForSelector('text=Chưa có host nào được lưu')
   })
 })
 
@@ -107,7 +107,7 @@ describe('saving hosts', () => {
     await page.fill(vis('input[name=username]'), 'x')
     await page.fill(vis('input[name=password]'), 'x')
     await page.click('button[type=submit]:has-text("Save")')
-    await page.waitForSelector('[role=alert]:has-text("valid host")')
+    await page.waitForSelector('[role=alert]:has-text("hợp lệ")')
     expect(await page.inputValue(vis('input[name=host]'))).toBe('-oProxyCommand=evil')
     await page.click('button:has-text("Cancel")')
   })
@@ -146,7 +146,7 @@ describe('locking', () => {
 
   it('the main process refuses saved-host operations while locked', async () => {
     const r = await page.evaluate(async () => ({ hosts: await window.mymius.hosts.list(), keys: await window.mymius.keys.list() }))
-    expect(r.hosts).toMatchObject({ ok: false, error: expect.stringMatching(/locked/) })
+    expect(r.hosts).toMatchObject({ ok: false, error: expect.stringMatching(/đang khóa/) })
     expect(r.keys).toMatchObject({ ok: false })
   })
 
@@ -154,7 +154,7 @@ describe('locking', () => {
     await H.goTo(page, 'Hosts')
     await page.fill(vis('input[name=passphrase]'), 'not the passphrase')
     await page.click('button:has-text("Unlock")')
-    await page.waitForSelector('[role=alert]:has-text("Wrong passphrase")')
+    await page.waitForSelector('[role=alert]:has-text("Sai passphrase")')
     await page.fill(vis('input[name=passphrase]'), PASS)
     await page.click('button:has-text("Unlock")')
     await page.waitForSelector('[data-testid="host-prod-box"]')
@@ -164,7 +164,7 @@ describe('locking', () => {
 describe('editing', () => {
   it('renaming a host without retyping its password keeps the password working', async () => {
     await page.click('button[aria-label="Edit prod-box"]')
-    expect(await page.getAttribute(vis('input[name=password]'), 'placeholder')).toMatch(/leave empty to keep/)
+    expect(await page.getAttribute(vis('input[name=password]'), 'placeholder')).toMatch(/để trống nếu muốn giữ nguyên/)
     await page.fill(vis('input[name=name]'), 'prod-renamed')
     await page.click('button[type=submit]:has-text("Save")')
     await page.waitForSelector('[data-testid="host-prod-renamed"]')
@@ -192,7 +192,7 @@ describe('restart and recovery', () => {
     await page.click('button:has-text("I forgot my passphrase")')
     await page.fill(vis('input[name=recovery]'), '0'.repeat(64))
     await page.click('button:has-text("Unlock")')
-    await page.waitForSelector('[role=alert]:has-text("Wrong passphrase")')
+    await page.waitForSelector('[role=alert]:has-text("Sai passphrase")')
     await page.fill(vis('input[name=recovery]'), recoveryKey)
     await page.click('button:has-text("Unlock")')
     await page.waitForSelector('[data-testid="host-prod-renamed"]')
@@ -249,7 +249,7 @@ describe('keys and jump hosts', () => {
     await H.goTo(page, 'Hosts')
     await page.click('button:has-text("Keys (")')
     await page.click('button[aria-label="Delete id_test"]')
-    await page.waitForSelector('[role=alert]:has-text("Still used by")')
+    await page.waitForSelector('[role=alert]:has-text("Vẫn đang được dùng bởi")')
   })
 
   it('a host used as a jump host cannot be deleted', async () => {
@@ -257,7 +257,7 @@ describe('keys and jump hosts', () => {
     await page.click('button[aria-label="Edit prod-renamed"]')
     await page.click('button:has-text("Delete")')
     await page.click('button:has-text("Yes, delete")')
-    await page.waitForSelector('[role=alert]:has-text("Used as a jump host by: inner")')
+    await page.waitForSelector('[role=alert]:has-text("Đang được dùng làm jump host bởi: inner")')
   })
 })
 

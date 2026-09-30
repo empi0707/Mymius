@@ -61,7 +61,7 @@ describe('hosts', () => {
       expect(err(await svc.saveHost(undefined, bad))).toBeTruthy()
     }
     for (const badId of [42, 'key:abc', {}]) expect(err(await svc.saveHost(badId, pw('x')))).toBeTruthy()
-    expect(err(await svc.saveHost('host:00000000-0000-0000-0000-000000000000', pw('x')))).toMatch(/no longer exists/)
+    expect(err(await svc.saveHost('host:00000000-0000-0000-0000-000000000000', pw('x')))).toMatch(/không còn tồn tại/)
     expect(ok(svc.listHosts()).hosts).toEqual([])
   })
 
@@ -69,10 +69,10 @@ describe('hosts', () => {
     const svc = await make()
     const a = ok(await svc.saveHost(undefined, { ...pw('a'), name: 'a' })).id
     const b = ok(await svc.saveHost(undefined, { ...pw('b'), name: 'b', jumpHostId: a })).id
-    expect(err(await svc.saveHost(undefined, { ...pw('c'), jumpHostId: 'host:nope' }))).toMatch(/no longer exists/)
-    expect(err(await svc.saveHost(a, { ...pw(), name: 'a', jumpHostId: b }))).toMatch(/loop/)
-    expect(err(await svc.saveHost(a, { ...pw(), name: 'a', jumpHostId: a }))).toMatch(/loop/)
-    expect(err(await svc.deleteHost(a))).toMatch(/Used as a jump host by: b/)
+    expect(err(await svc.saveHost(undefined, { ...pw('c'), jumpHostId: 'host:nope' }))).toMatch(/không còn tồn tại/)
+    expect(err(await svc.saveHost(a, { ...pw(), name: 'a', jumpHostId: b }))).toMatch(/vòng lặp/)
+    expect(err(await svc.saveHost(a, { ...pw(), name: 'a', jumpHostId: a }))).toMatch(/vòng lặp/)
+    expect(err(await svc.deleteHost(a))).toMatch(/Đang được dùng làm jump host bởi: b/)
     ok(await svc.deleteHost(b))
     ok(await svc.deleteHost(a))
     expect(ok(svc.listHosts()).hosts).toEqual([])
@@ -82,7 +82,7 @@ describe('hosts', () => {
     const svc = await make()
     const path = join(dir, 'later')
     const { id } = ok(await svc.saveHost(undefined, { ...base, auth: { type: 'keyFile', path, passphrase: 'pp' } }))
-    await expect(svc.lookup.resolve(id)).rejects.toThrow(/Cannot read the key file/)
+    await expect(svc.lookup.resolve(id)).rejects.toThrow(/Không đọc được file khóa/)
     const k = generateEd25519().private
     await writeFile(path, k)
     expect((await svc.lookup.resolve(id)).auth).toEqual({ type: 'key', privateKey: k, passphrase: 'pp' })
@@ -93,12 +93,12 @@ describe('hosts', () => {
     const { id } = ok(await svc.saveHost(undefined, { ...base, auth: { type: 'agent' } }))
     expect((await svc.lookup.resolve(id)).auth).toEqual({ type: 'agent', socket: '/tmp/agent.sock' })
     agent = undefined
-    await expect(svc.lookup.resolve(id)).rejects.toThrow(/No ssh-agent/)
+    await expect(svc.lookup.resolve(id)).rejects.toThrow(/Không tìm thấy ssh-agent/)
   })
 
   it('resolving an unknown or foreign id fails cleanly', async () => {
     const svc = await make()
-    await expect(svc.lookup.resolve('host:gone')).rejects.toThrow(/no longer exists/)
+    await expect(svc.lookup.resolve('host:gone')).rejects.toThrow(/không còn tồn tại/)
     await expect(svc.lookup.resolve('key:whatever')).rejects.toThrow()
   })
 })
@@ -122,7 +122,7 @@ describe('keys', () => {
     const { id } = ok(await svc.saveHost(undefined, { ...base, auth: { type: 'key', keyId: key.id } }))
     expect((await svc.lookup.resolve(id)).auth).toEqual({ type: 'key', privateKey: keyText })
     expect(ok(svc.listHosts()).hosts[0]).toMatchObject({ authType: 'key', keyName: 'k' })
-    expect(err(await svc.deleteKey(key.id))).toMatch(/Still used by: web/)
+    expect(err(await svc.deleteKey(key.id))).toMatch(/Vẫn đang được dùng bởi: web/)
     ok(await svc.deleteHost(id))
     ok(await svc.deleteKey(key.id))
     expect(ok(svc.listKeys()).keys).toEqual([])
@@ -130,7 +130,7 @@ describe('keys', () => {
 
   it('refuses to save a host that points at a key that does not exist', async () => {
     const svc = await make()
-    expect(err(await svc.saveHost(undefined, { ...base, auth: { type: 'key', keyId: 'key:nope' } }))).toMatch(/no longer exists/)
+    expect(err(await svc.saveHost(undefined, { ...base, auth: { type: 'key', keyId: 'key:nope' } }))).toMatch(/không còn tồn tại/)
   })
 
   it('an encrypted key needs its passphrase, is checked immediately, and the passphrase is stored with it', async () => {
@@ -142,7 +142,7 @@ describe('keys', () => {
     }
     const p = join(dir, 'enc'); await writeFile(p, k!.private)
     expect(err(await svc.importKey(p, 'enc', ''))).toMatch(/passphrase/i)
-    expect(err(await svc.importKey(p, 'enc', 'wrong'))).toMatch(/Wrong passphrase/)
+    expect(err(await svc.importKey(p, 'enc', 'wrong'))).toMatch(/Sai passphrase/)
     const { key } = ok(await svc.importKey(p, 'enc', 'open-sesame'))
     expect(key.hasPassphrase).toBe(true)
     expect(JSON.stringify(ok(svc.listKeys()))).not.toContain('open-sesame')
@@ -154,9 +154,9 @@ describe('keys', () => {
     const svc = await make()
     const junk = join(dir, 'junk'); await writeFile(junk, 'this is a secret note, not a key')
     const pub = join(dir, 'pub'); await writeFile(pub, generateEd25519().public)
-    expect(err(await svc.importKey(junk, 'x', ''))).toMatch(/not a valid private key/)
-    expect(err(await svc.importKey(pub, 'x', ''))).toMatch(/public key/)
-    expect(err(await svc.importKey(join(dir, 'missing'), 'x', ''))).toMatch(/Cannot read/)
+    expect(err(await svc.importKey(junk, 'x', ''))).toMatch(/không phải file khóa riêng tư hợp lệ/)
+    expect(err(await svc.importKey(pub, 'x', ''))).toMatch(/khóa công khai/)
+    expect(err(await svc.importKey(join(dir, 'missing'), 'x', ''))).toMatch(/Không đọc được/)
     expect(err(await svc.importKey(42, 'x', ''))).toBeTruthy()
     expect(err(await svc.importKey('', 'x', ''))).toBeTruthy()
     expect(ok(svc.listKeys()).keys).toEqual([])
@@ -180,17 +180,17 @@ describe('locked and damaged', () => {
     const { id } = ok(await svc.saveHost(undefined, pw('x')))
     await svc.lock()
     expect((await svc.status()).state).toBe('locked')
-    expect(err(svc.listHosts())).toMatch(/locked/)
-    expect(err(svc.listKeys())).toMatch(/locked/)
-    expect(err(await svc.saveHost(undefined, pw('x')))).toMatch(/locked/)
-    expect(err(await svc.deleteHost(id))).toMatch(/locked/)
-    await expect(svc.lookup.resolve(id)).rejects.toThrow(/locked/)
+    expect(err(svc.listHosts())).toMatch(/đang khóa/)
+    expect(err(svc.listKeys())).toMatch(/đang khóa/)
+    expect(err(await svc.saveHost(undefined, pw('x')))).toMatch(/đang khóa/)
+    expect(err(await svc.deleteHost(id))).toMatch(/đang khóa/)
+    await expect(svc.lookup.resolve(id)).rejects.toThrow(/đang khóa/)
   })
 
   it('unlock: wrong passphrase, right passphrase, recovery key, and a non-string is refused', async () => {
     const svc = await make()
     await svc.lock()
-    expect(err(await svc.unlock('nope nope nope', false))).toBe('Wrong passphrase')
+    expect(err(await svc.unlock('nope nope nope', false))).toBe('Sai passphrase')
     expect(err(await svc.unlock(123, false))).toBeTruthy()
     ok(await svc.unlock(PASS, false))
     expect((await svc.status()).state).toBe('unlocked')
@@ -201,13 +201,13 @@ describe('locked and damaged', () => {
     const svc = new VaultService(store, { readTextFile: async () => '', agentSocket: () => undefined })
     const { recoveryKey } = ok(await svc.create(PASS, false))
     await svc.lock()
-    expect(err(await svc.unlockWithRecovery('0'.repeat(64), false))).toBe('Wrong passphrase')
+    expect(err(await svc.unlockWithRecovery('0'.repeat(64), false))).toBe('Sai passphrase')
     ok(await svc.unlockWithRecovery(recoveryKey, false))
   })
 
   it('a weak passphrase is explained', async () => {
     const svc = await make(false)
-    expect(err(await svc.create('short', false))).toMatch(/at least 10/)
+    expect(err(await svc.create('short', false))).toMatch(/ít nhất 10/)
     expect((await svc.status()).state).toBe('uninitialized')
   })
 
@@ -216,8 +216,8 @@ describe('locked and damaged', () => {
     const svc = await make(false)
     const st = await svc.status()
     expect(st.state).toBe('damaged')
-    expect(st.error).toMatch(/damaged/)
-    expect(err(await svc.create(PASS, false))).toMatch(/damaged/)
+    expect(st.error).toMatch(/hỏng/)
+    expect(err(await svc.create(PASS, false))).toMatch(/hỏng/)
     expect(await readFile(join(dir, 'vault.json'), 'utf8')).toBe('{ broken')
   })
 })

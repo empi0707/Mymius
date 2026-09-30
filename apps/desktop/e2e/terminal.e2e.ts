@@ -99,7 +99,7 @@ describe('terminal in the real app', () => {
 
   it('shows a closed session, and reconnects into a working shell', async () => {
     await run('t1', 'exit 0')
-    await page.waitForSelector('.overlay:has-text("Session closed")')
+    await page.waitForSelector('.overlay:has-text("Phiên đã đóng")')
     await page.click('.overlay button:has-text("Reconnect")')
     await page.waitForSelector('.overlay', { state: 'detached' })
     await waitForText('t1', /welcome tester\n\$/)
@@ -125,7 +125,7 @@ describe('terminal in the real app', () => {
     server = await startSshTestServer(tmp, { port }) // same address, different key
     await page.click('button[aria-label="New connection"]')
     await connect('127.0.0.1', port)
-    await page.waitForSelector('.overlay:has-text("HOST KEY CHANGED")', { timeout: 20_000 })
+    await page.waitForSelector('.overlay:has-text("KHÓA HOST ĐÃ THAY ĐỔI")', { timeout: 20_000 })
     expect((await dialogs()).length).toBe(dialogCount) // never offered as a choice
     await page.screenshot({ path: process.env.E2E_SHOT ?? join(tmp, 'changed.png') })
   })

@@ -19,36 +19,36 @@ export interface OpenRequest {
  * fit to show the user. Nothing here trusts the caller's types.
  */
 export function parseOpenRequest(input: unknown): OpenRequest {
-  if (!input || typeof input !== 'object') throw new Error('Invalid request')
+  if (!input || typeof input !== 'object') throw new Error('Yêu cầu không hợp lệ')
   const r = input as Record<string, unknown>
 
   const host = typeof r.host === 'string' ? r.host.trim() : ''
   // No whitespace, control characters or option-looking values (a host starting with "-" is a classic injection).
   // eslint-disable-next-line no-control-regex
   if (!host || host.length > 255 || host.startsWith('-') || /[\s\u0000-\u001f\u007f]/.test(host)) {
-    throw new Error('Enter a valid host name or address')
+    throw new Error('Hãy nhập tên host hoặc địa chỉ hợp lệ')
   }
   const port = r.port === undefined ? 22 : r.port
   if (typeof port !== 'number' || !Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new Error('Port must be between 1 and 65535')
+    throw new Error('Port phải nằm trong khoảng 1 đến 65535')
   }
   const username = typeof r.username === 'string' ? r.username.trim() : ''
   // eslint-disable-next-line no-control-regex
-  if (!username || username.length > 256 || /[\u0000-\u001f\u007f]/.test(username)) throw new Error('Enter a user name')
+  if (!username || username.length > 256 || /[\u0000-\u001f\u007f]/.test(username)) throw new Error('Hãy nhập tên người dùng')
 
   const cols = r.cols
   const rows = r.rows
-  if (!dim(cols) || !dim(rows)) throw new Error('Invalid terminal size')
+  if (!dim(cols) || !dim(rows)) throw new Error('Kích thước terminal không hợp lệ')
 
   const a = r.auth as Record<string, unknown> | undefined
   let auth: OpenAuth
   switch (a?.type) {
     case 'password':
-      if (typeof a.password !== 'string') throw new Error('Enter a password')
+      if (typeof a.password !== 'string') throw new Error('Hãy nhập mật khẩu')
       auth = { type: 'password', password: a.password }
       break
     case 'key':
-      if (typeof a.keyPath !== 'string' || !a.keyPath.trim()) throw new Error('Choose a private key file')
+      if (typeof a.keyPath !== 'string' || !a.keyPath.trim()) throw new Error('Hãy chọn file khóa riêng tư')
       auth = {
         type: 'key',
         keyPath: a.keyPath.trim(),
@@ -59,7 +59,7 @@ export function parseOpenRequest(input: unknown): OpenRequest {
       auth = { type: 'agent' }
       break
     default:
-      throw new Error('Choose how to sign in')
+      throw new Error('Hãy chọn cách đăng nhập')
   }
   return { host, port, username, auth, cols, rows }
 }

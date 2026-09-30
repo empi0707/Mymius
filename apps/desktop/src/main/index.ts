@@ -7,6 +7,7 @@ import { VaultStore } from '@mymius/vault'
 import { Channels, type AppInfo, type OS } from '../shared/ipc'
 import { ConnectionBroker } from './connections'
 import { DriveSyncService } from './drive-service'
+import { AutoBackupService } from './auto-backup-service'
 import { FileSyncService } from './file-sync-service'
 import { FilesService } from './files'
 import { OsSecretStore } from './secret-store'
@@ -21,6 +22,7 @@ let terminals: TerminalService
 let fileService: FilesService
 let driveService: DriveSyncService
 let fileSyncService: FileSyncService
+let autoBackup: AutoBackupService
 let vault: VaultService
 let osKeychain = false
 
@@ -123,11 +125,17 @@ function registerIpc(): void {
   ipcMain.handle(Channels.driveDisconnect, (_e, deleteRemote: unknown) => driveService.disconnect(deleteRemote === true))
   ipcMain.handle(Channels.driveSyncNow, () => driveService.syncNow())
 
+  ipcMain.handle(Channels.autoBackupStatus, () => autoBackup.status())
+  ipcMain.handle(Channels.autoBackupEnable, (_e, v: unknown) => autoBackup.setEnabled(v))
+  ipcMain.handle(Channels.autoBackupFolder, () => autoBackup.chooseFolder())
+  ipcMain.handle(Channels.autoBackupReset, () => autoBackup.resetFolder())
+  ipcMain.handle(Channels.autoBackupNow, () => autoBackup.backupNow())
+
   // JSON file sync, backup and restore.
   ipcMain.handle(Channels.fileSyncStatus, () => fileSyncService.status())
   ipcMain.handle(Channels.fileSyncExport, () => fileSyncService.exportBackup())
   ipcMain.handle(Channels.fileSyncImport, () => fileSyncService.importBackup())
-  ipcMain.handle(Channels.fileSyncLink, (_e, mode: unknown) => (mode === 'create' || mode === 'existing' ? fileSyncService.link(mode) : { ok: false, error: 'Invalid request' }))
+  ipcMain.handle(Channels.fileSyncLink, (_e, mode: unknown) => (mode === 'create' || mode === 'existing' ? fileSyncService.link(mode) : { ok: false, error: 'Yêu cầu không hợp lệ' }))
   ipcMain.handle(Channels.fileSyncUnlink, () => fileSyncService.unlink())
   ipcMain.handle(Channels.fileSyncNow, () => fileSyncService.syncNow())
 
@@ -203,6 +211,24 @@ void app.whenReady().then(async () => {
   )
   await fileSyncService.init()
 
+  const e2eBackupDir: string | undefined = import.meta.env.MODE === 'e2e' ? process.env.MYMIUS_E2E_BACKUP_DIR : undefined
+  autoBackup = new AutoBackupService(
+    {
+      defaultDir: join(userData, 'backups'),
+      pickDirectory: async () => {
+        if (e2eBackupDir) return e2eBackupDir
+        const win = BrowserWindow.getFocusedWindow() ?? undefined
+        const opts = { properties: ['openDirectory', 'createDirectory'] as ('openDirectory' | 'createDirectory')[] }
+        const r = await (win ? dialog.showOpenDialog(win, opts) : dialog.showOpenDialog(opts))
+        return r.canceled ? undefined : r.filePaths[0]
+      },
+      emitStatus: (status) => { for (const w of BrowserWindow.getAllWindows()) w.webContents.send(Channels.autoBackupStatusEvent, status) },
+      ...(e2eBackupDir ? { debounceMs: 100 } : {})
+    },
+    store
+  )
+  await autoBackup.init()
+
   const broker = new ConnectionBroker(
     {
       knownHostsFile: join(userData, 'known_hosts.json'),
@@ -214,8 +240,8 @@ void app.whenReady().then(async () => {
           defaultId: 0, // Enter must not accept an unverified host
           cancelId: 0,
           title: 'Unknown host',
-          message: `The authenticity of ${info.host}${info.port === 22 ? '' : `:${info.port}`} can't be established.`,
-          detail: `Key fingerprint:\n${info.fingerprint}\n\nOnly continue if you recognise this fingerprint.`
+          message: `Không thể xác thực ${info.host}${info.port === 22 ? '' : `:${info.port}`}.`,
+          detail: `Dấu vân tay của khóa:\n${info.fingerprint}\n\nChỉ tiếp tục nếu bạn nhận ra dấu vân tay này.`
         }
         const r = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options)
         return r.response === 1
@@ -250,12 +276,12 @@ void app.whenReady().then(async () => {
           title: ctx.kind === 'deleted' ? 'File deleted on the server' : 'File changed on the server',
           message:
             ctx.kind === 'deleted'
-              ? `${ctx.remotePath} no longer exists on the server.`
-              : `${ctx.remotePath} was changed on the server after you opened it.`,
+              ? `${ctx.remotePath} không còn tồn tại trên server.`
+              : `${ctx.remotePath} đã bị thay đổi trên server sau khi bạn mở nó.`,
           detail:
             ctx.kind === 'deleted'
-              ? 'Overwrite recreates it from your copy. Cancel keeps your copy here without uploading.'
-              : 'Overwrite replaces the server file with your version. Reload takes the server version and keeps your edits in a separate file next to your copy. Cancel uploads nothing.'
+              ? 'Overwrite sẽ tạo lại file từ bản của bạn. Cancel giữ bản của bạn ở đây và không tải lên.'
+              : 'Overwrite thay file trên server bằng bản của bạn. Reload lấy bản trên server và giữ chỉnh sửa của bạn trong một file riêng cạnh bản của bạn. Cancel không tải gì lên.'
         }
         // A deleted file has nothing to reload, so that button is not offered.
         if (ctx.kind === 'deleted') options.buttons = ['Cancel', 'Recreate the server file']

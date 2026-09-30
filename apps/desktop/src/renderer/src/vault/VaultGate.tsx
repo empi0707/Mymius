@@ -9,7 +9,7 @@ export function VaultGate({ children }: { children: React.ReactNode }): React.JS
   const { status, refresh } = useVault()
   const [recoveryKey, setRecoveryKey] = useState<string | null>(null)
 
-  if (!status) return <p className="empty">Loading…</p>
+  if (!status) return <p className="empty">Đang tải…</p>
   if (recoveryKey) return <RecoveryKey value={recoveryKey} onDone={() => { setRecoveryKey(null); void refresh() }} />
   switch (status.state) {
     case 'damaged':
@@ -17,7 +17,7 @@ export function VaultGate({ children }: { children: React.ReactNode }): React.JS
         <div className="form" role="alert">
           <h2>The vault file is damaged</h2>
           <p className="hint">{status.error}</p>
-          <p className="hint">Nothing has been changed or deleted. Restore <code>vault.json</code> from a backup, or contact support before creating a new vault.</p>
+          <p className="hint">Chưa có gì bị thay đổi hay xóa. Hãy khôi phục <code>vault.json</code> từ bản backup, hoặc liên hệ hỗ trợ trước khi tạo vault mới.</p>
         </div>
       )
     case 'uninitialized':
@@ -38,7 +38,7 @@ function Setup({ canRemember, onCreated, onRestored }: { canRemember: boolean; o
 
   const submit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
-    if (pass !== again) return setError('The two passphrases do not match')
+    if (pass !== again) return setError('Hai passphrase không khớp nhau')
     setBusy(true)
     setError('')
     const r = await window.mymius.vault.create(pass, remember)
@@ -51,7 +51,7 @@ function Setup({ canRemember, onCreated, onRestored }: { canRemember: boolean; o
     <div className="setup">
     <form className="form" onSubmit={(e) => void submit(e)}>
       <h2>Create your vault</h2>
-      <p className="hint">Your hosts, passwords and keys are encrypted with a passphrase that only you know. It is never stored or sent anywhere, so it cannot be reset.</p>
+      <p className="hint">Host, mật khẩu và khóa của bạn được mã hóa bằng một passphrase chỉ mình bạn biết. Passphrase không bao giờ được lưu hay gửi đi đâu, nên không thể đặt lại.</p>
       <label>Passphrase (at least 10 characters)<input name="passphrase" type="password" value={pass} onChange={(e) => setPass(e.target.value)} autoFocus autoComplete="new-password" /></label>
       <label>Repeat passphrase<input name="passphrase2" type="password" value={again} onChange={(e) => setAgain(e.target.value)} autoComplete="new-password" /></label>
       {canRemember && (
@@ -88,17 +88,17 @@ function SignInWithGoogle({ onRestored }: { onRestored(): void }): React.JSX.Ele
       {signedIn ? (
         <>
           <Account name={status.name} email={status.email} />
-          <p className="hint" data-testid="signed-in-hint">Create your vault below and it will be synced to this Google account automatically.</p>
+          <p className="hint" data-testid="signed-in-hint">Hãy tạo vault bên dưới, vault sẽ tự động được đồng bộ với tài khoản Google này.</p>
           <div className="row"><span className="grow" /><button className="link" onClick={() => void window.mymius.drive.disconnect(false).then(refresh)}>Sign out</button></div>
         </>
       ) : (
         <>
-          <p className="hint">Use your Google account to keep your hosts and keys in sync. If you already use Mymius on another device, they come back here and you unlock them with the passphrase you chose there.</p>
+          <p className="hint">Dùng tài khoản Google để đồng bộ host và khóa của bạn. Nếu bạn đã dùng Mymius trên thiết bị khác, dữ liệu sẽ về lại đây và bạn mở khóa bằng passphrase đã chọn ở thiết bị đó.</p>
           {status && !status.configured && !asking && <button className="secondary" onClick={() => setAsking(true)}>Set up Google sign-in…</button>}
           {asking && !status?.configured && <ClientForm submitLabel="Continue" onSaved={() => { setAsking(false); void refresh() }} />}
           {status?.configured && !connecting && <button className="secondary google" onClick={() => void start()}>Sign in with Google</button>}
           {connecting && (
-            <div className="row" role="status"><span>Waiting for you to finish signing in, in your browser…</span><span className="grow" /><button className="secondary" onClick={() => void window.mymius.drive.cancelConnect()}>Cancel</button></div>
+            <div className="row" role="status"><span>Đang chờ bạn đăng nhập xong trong trình duyệt…</span><span className="grow" /><button className="secondary" onClick={() => void window.mymius.drive.cancelConnect()}>Cancel</button></div>
           )}
         </>
       )}
@@ -119,7 +119,7 @@ function RestoreFromFile({ onRestored }: { onRestored(): void }): React.JSX.Elem
   return (
     <div className="form restore" data-testid="restore-file">
       <h3>Have a backup or sync file?</h3>
-      <p className="hint">Restore from a <code>.json</code> file made by Mymius on another device. You unlock it with the passphrase you chose there.</p>
+      <p className="hint">Khôi phục từ file <code>.json</code> do Mymius tạo trên thiết bị khác. Bạn mở khóa bằng passphrase đã chọn ở thiết bị đó.</p>
       <div className="row wrap">
         <button className="secondary" onClick={() => void pick('import')}>Restore from backup…</button>
         <button className="secondary" onClick={() => void pick('link')}>Restore and keep in sync with file…</button>
@@ -135,7 +135,7 @@ function RecoveryKey({ value, onDone }: { value: string; onDone(): void }): Reac
   return (
     <div className="form">
       <h2>Save your recovery key</h2>
-      <p className="hint">If you forget your passphrase, this key is the <strong>only</strong> way back into your vault. It is shown once. Store it somewhere safe, such as a password manager or a printout.</p>
+      <p className="hint">Nếu quên passphrase, khóa này là cách <strong>duy nhất</strong> để vào lại vault. Khóa chỉ hiện một lần. Hãy cất ở nơi an toàn, ví dụ trình quản lý mật khẩu hoặc bản in.</p>
       <code className="recovery" data-testid="recovery-key">{value}</code>
       <button type="button" className="secondary" onClick={() => void navigator.clipboard.writeText(value).then(() => setCopied(true))}>{copied ? 'Copied' : 'Copy'}</button>
       <label className="radio"><input type="checkbox" name="saved" checked={saved} onChange={(e) => setSaved(e.target.checked)} />I have saved my recovery key</label>
@@ -168,7 +168,7 @@ function Unlock({ canRemember, onUnlocked }: { canRemember: boolean; onUnlocked(
     <form className="form" onSubmit={(e) => void submit(e)}>
       <h2>Unlock your vault</h2>
       {drive?.email && drive.phase === 'locked' && (
-        <p className="hint" data-testid="restored-hint">Your vault was restored from Google Drive ({drive.email}). Enter the passphrase you chose on your other device.</p>
+        <p className="hint" data-testid="restored-hint">Vault của bạn đã được khôi phục từ Google Drive ({drive.email}). Hãy nhập passphrase bạn đã chọn trên thiết bị kia.</p>
       )}
       <label>
         {useRecovery ? 'Recovery key' : 'Passphrase'}

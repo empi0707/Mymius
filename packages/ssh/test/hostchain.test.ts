@@ -93,14 +93,14 @@ describe('inspectPrivateKey', () => {
       if (!(utils.parseKey(c.private, 'right-pass') instanceof Error)) k = c
     }
     expect(() => inspectPrivateKey(k!.private)).toThrow(/passphrase/i)
-    expect(() => inspectPrivateKey(k!.private, 'wrong')).toThrow(/Wrong passphrase/)
+    expect(() => inspectPrivateKey(k!.private, 'wrong')).toThrow(/Sai passphrase/)
     expect(inspectPrivateKey(k!.private, 'right-pass')).toMatchObject({ encrypted: true, type: 'ssh-ed25519' })
   })
 
   it('rejects public keys, garbage and oversized input with clear messages', () => {
-    expect(() => inspectPrivateKey(generateEd25519().public)).toThrow(/public key/)
-    expect(() => inspectPrivateKey('hello world')).toThrow(/not a valid private key/)
+    expect(() => inspectPrivateKey(generateEd25519().public)).toThrow(/khóa công khai/)
+    expect(() => inspectPrivateKey('hello world')).toThrow(/không phải file khóa riêng tư hợp lệ/)
     expect(() => inspectPrivateKey('')).toThrow()
-    expect(() => inspectPrivateKey('x'.repeat(70 * 1024))).toThrow(/too large/)
+    expect(() => inspectPrivateKey('x'.repeat(70 * 1024))).toThrow(/quá lớn/)
   })
 })
