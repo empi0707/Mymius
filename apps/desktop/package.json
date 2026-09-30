@@ -2,6 +2,9 @@
   "name": "@mymius/desktop",
   "version": "0.0.0",
   "private": true,
+  "author": "Mymius <noreply@mymius.app>",
+  "desktopName": "mymius.desktop",
+  "homepage": "https://github.com/empi0707/Mymius",
   "description": "Mymius - SSH terminal, dual-pane file manager and folder sync",
   "main": "./out/main/index.js",
   "scripts": {

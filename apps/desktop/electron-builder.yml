@@ -1,5 +1,8 @@
 appId: app.mymius.desktop
 productName: Mymius
+executableName: mymius
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+publish: null   # phát hành thủ công: gửi bộ cài cho nhóm, không có auto-update
 directories:
   buildResources: build
   output: release
@@ -20,4 +23,7 @@ nsis:
   allowToChangeInstallationDirectory: true
 linux:
   category: Development
+  syncDesktopName: true
+  maintainer: Mymius <noreply@mymius.app>
+  synopsis: SSH terminal and dual-pane file manager
   target: [AppImage, deb]
