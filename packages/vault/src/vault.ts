@@ -10,10 +10,14 @@ export interface VaultMeta {
   kdf: KdfParams
   wrappedByPassphrase: string
   wrappedByRecovery: string
+  /** A known constant sealed with the data key: lets us tell whether a key from elsewhere is the right one. */
+  check: string
 }
 
 const AAD_PASS = 'mymius/vault/key/passphrase'
 const AAD_RECOVERY = 'mymius/vault/key/recovery'
+const AAD_CHECK = 'mymius/vault/check'
+const CHECK_TEXT = 'mymius-vault-ok'
 
 export interface CreatedVault {
   meta: VaultMeta
@@ -35,7 +39,8 @@ export async function createVault(passphrase: string, kdfOverrides?: Partial<Kdf
       version: 1,
       kdf,
       wrappedByPassphrase: seal(kek, dataKey, AAD_PASS),
-      wrappedByRecovery: seal(recovery, dataKey, AAD_RECOVERY)
+      wrappedByRecovery: seal(recovery, dataKey, AAD_RECOVERY),
+      check: seal(dataKey, CHECK_TEXT, AAD_CHECK)
     }
   }
 }
@@ -69,4 +74,13 @@ export function parseRecoveryKey(text: string): Buffer {
   const hex = text.replace(/[\s-]/g, '').toLowerCase()
   if (!/^[0-9a-f]{64}$/.test(hex)) throw new VaultAuthError('Malformed recovery key')
   return Buffer.from(hex, 'hex')
+}
+
+/** True when `key` is the data key of this vault (e.g. one cached in the OS keychain, or from another device). */
+export function verifyDataKey(meta: VaultMeta, key: Buffer): boolean {
+  try {
+    return open(key, meta.check, AAD_CHECK).toString() === CHECK_TEXT
+  } catch {
+    return false
+  }
 }

@@ -4,13 +4,13 @@ import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 import { useEffect, useRef } from 'react'
-import type { OpenTerminalRequest, OS } from '../../../shared/ipc'
+import type { OS, TerminalTarget } from '../../../shared/ipc'
 import { router } from './session'
 
 export type TabStatus = 'connecting' | 'open' | 'closed' | 'error'
 
 interface Props {
-  request: Omit<OpenTerminalRequest, 'cols' | 'rows'>
+  request: TerminalTarget
   os: OS
   /** Changes when the user asks to reconnect: mounts a fresh session. */
   attempt: number

@@ -4,49 +4,22 @@
  */
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
-import { _electron as electron, type ElectronApplication, type Page } from 'playwright-core'
-import electronPath from 'electron'
+import { join } from 'node:path'
+import type { ElectronApplication, Page } from 'playwright-core'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { startSshTestServer, type TestServer } from '@mymius/ssh/testing'
+import * as H from './helpers'
 
 let app: ElectronApplication
 let page: Page
 let server: TestServer
 let tmp: string
-const appDir = resolve(__dirname, '..')
 
-/** Text currently in the xterm buffer of a tab (scrollback included). */
-const screen = (key: string) =>
-  page.evaluate((k) => {
-    const t = (window as unknown as { __mymiusTerminals: Record<string, { buffer: { active: { length: number; getLine(i: number): { translateToString(trim: boolean): string } | undefined } } }> }).__mymiusTerminals[k]
-    if (!t) return ''
-    const b = t.buffer.active
-    return Array.from({ length: b.length }, (_, i) => b.getLine(i)?.translateToString(true) ?? '').join('\n')
-  }, key)
-
-const dims = (key: string) =>
-  page.evaluate((k) => {
-    const t = (window as unknown as { __mymiusTerminals: Record<string, { cols: number; rows: number }> }).__mymiusTerminals[k]!
-    return { cols: t.cols, rows: t.rows }
-  }, key)
-
-const waitForText = async (key: string, text: string | RegExp, timeout = 15_000) => {
-  const deadline = Date.now() + timeout
-  let last = ''
-  while (Date.now() < deadline) {
-    last = await screen(key)
-    if (typeof text === 'string' ? last.includes(text) : text.test(last)) return last
-    await new Promise((r) => setTimeout(r, 50))
-  }
-  throw new Error(`timed out waiting for ${text}\n--- screen ---\n${last.slice(-600)}`)
-}
-
-const run = async (key: string, cmd: string) => {
-  await page.waitForFunction((k) => document.querySelector(`[data-testid="${k}"]`)?.contains(document.activeElement), key)
-  await page.keyboard.type(cmd)
-  await page.keyboard.press('Enter')
-}
+const screen = (key: string) => H.screen(page, key)
+const dims = (key: string) => H.dims(page, key)
+const waitForText = (key: string, text: string | RegExp, timeout?: number) => H.waitForText(page, key, text, timeout)
+const run = (key: string, cmd: string) => H.run(page, key, cmd)
+const dialogs = () => H.dialogs(app)
 
 async function connect(host: string, port: number) {
   await page.fill('input[name=host]', host)
@@ -59,23 +32,10 @@ async function connect(host: string, port: number) {
 beforeAll(async () => {
   tmp = await mkdtemp(join(tmpdir(), 'mymius-e2e-'))
   server = await startSshTestServer(tmp)
-  app = await electron.launch({
-    executablePath: electronPath as unknown as string,
-    args: ['--no-sandbox', `--user-data-dir=${join(tmp, 'profile')}`, appDir],
-    env: { ...process.env, NODE_ENV: 'production' }
-  })
-  // Stand in for the user clicking "Trust and connect", and record what they would have seen.
-  await app.evaluate(({ dialog }) => {
-    const g = globalThis as unknown as { __dialogs: { message: string; detail: string }[] }
-    g.__dialogs = []
-    dialog.showMessageBox = (async (...args: unknown[]) => {
-      const opts = args[args.length - 1] as { message: string; detail: string }
-      g.__dialogs.push({ message: opts.message, detail: opts.detail })
-      return { response: 1, checkboxChecked: false }
-    }) as never
-  })
-  page = await app.firstWindow()
-  await page.waitForSelector('form.connect')
+  ;({ app, page } = await H.launch(join(tmp, 'profile')))
+  // Quick connect (no vault needed) lives on the Terminals page.
+  await H.goTo(page, 'Terminals')
+  await page.waitForSelector('form.form input[name=host]')
 })
 
 afterAll(async () => {
@@ -83,8 +43,6 @@ afterAll(async () => {
   await server?.close()
   await rm(tmp, { recursive: true, force: true })
 })
-
-const dialogs = () => app.evaluate(() => (globalThis as unknown as { __dialogs: { message: string; detail: string }[] }).__dialogs)
 
 describe('terminal in the real app', () => {
   it('asks to trust an unknown host showing its fingerprint, then opens a shell', async () => {

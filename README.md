@@ -8,12 +8,13 @@
 |---|---|
 | Folder Sync giữa 2 pane (mirror trái→phải, phải→trái, hai chiều; dry-run; thùng rác phục hồi được) | Lõi xong, có test (`packages/folder-sync`) |
 | Remote Edit: mở file server bằng editor máy, Save là tự upload, phát hiện xung đột (Ghi đè / Tải bản server / Hủy) | Lõi xong, có test (`packages/remote-edit`) |
-| Vault mã hóa đầu-cuối + gộp bản ghi giữa các thiết bị | Lõi xong, có test (`packages/vault`) |
+| **Lưu host / khóa SSH vào vault mã hóa** (tạo, mở khóa, khóa, recovery key, đổi passphrase, jump host, nhập khóa) | Xong, có test + E2E (`packages/vault`, `apps/desktop`) |
+| Gộp bản ghi vault giữa các thiết bị (`snapshot` / `applyRemote` / `bootstrap`) | Lõi xong, có test; chưa nối vào Google Drive |
 | Khung Electron (bảo mật: sandbox, contextIsolation, CSP) | Có, build được |
 | Provider Local và **SFTP** (xác thực mật khẩu / khóa / ssh-agent / keyboard-interactive, xác minh host key, hash phía server) | Xong, có test (`packages/providers`) |
 | Provider FTP / S3 / WebDAV | Chưa |
 | **Terminal SSH** (xterm.js + ssh2): nhiều tab, resize, jump host, known_hosts (TOFU), chia sẻ kết nối, back-pressure | Xong, có test + E2E trên Electron thật |
-| Sync tài khoản qua Google Drive `appDataFolder` | Chưa (vault đã sẵn sàng cho việc này) |
+| Sync tài khoản qua Google Drive `appDataFolder` | Chưa (vault đã có sẵn API để cắm vào) |
 | UI file manager, danh sách phiên Remote Edit, UI Folder Sync | Chưa (mới có khung) |
 
 ## Bắt đầu

@@ -71,11 +71,19 @@ function dim(n: unknown): n is number {
 /** Random per process: the identity below is only ever compared in memory, never stored or logged. */
 const SALT = randomBytes(16)
 
-function authIdentity(auth: OpenAuth): string {
-  const h = createHash('sha256').update(SALT).update(auth.type).update('\0')
-  if (auth.type === 'password') h.update(auth.password)
-  else if (auth.type === 'key') h.update(auth.keyPath).update('\0').update(auth.passphrase ?? '')
+/** Stable within this process for equal input, unguessable and useless outside it. */
+export function credentialIdentity(parts: readonly string[]): string {
+  const h = createHash('sha256').update(SALT)
+  for (const p of parts) h.update(p).update('\0')
   return h.digest('hex').slice(0, 16)
+}
+
+function authIdentity(auth: OpenAuth): string {
+  switch (auth.type) {
+    case 'password': return credentialIdentity(['password', auth.password])
+    case 'key': return credentialIdentity(['key', auth.keyPath, auth.passphrase ?? ''])
+    case 'agent': return credentialIdentity(['agent'])
+  }
 }
 
 /**

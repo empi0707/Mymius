@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import { Channels, type MymiusApi, type TerminalDataEvent, type TerminalExitEvent } from '../shared/ipc'
+import { Channels, type MymiusApi, type TerminalDataEvent, type TerminalExitEvent, type VaultStatus } from '../shared/ipc'
 
 function subscribe<T>(channel: string, listener: (e: T) => void): () => void {
   const handler = (_e: IpcRendererEvent, payload: T): void => listener(payload)
@@ -18,6 +18,25 @@ const api: MymiusApi = {
     close: (id) => ipcRenderer.send(Channels.terminalClose, id),
     onData: (l) => subscribe<TerminalDataEvent>(Channels.terminalData, l),
     onExit: (l) => subscribe<TerminalExitEvent>(Channels.terminalExit, l)
+  },
+  vault: {
+    status: () => ipcRenderer.invoke(Channels.vaultStatus),
+    create: (passphrase, remember) => ipcRenderer.invoke(Channels.vaultCreate, passphrase, remember),
+    unlock: (passphrase, remember) => ipcRenderer.invoke(Channels.vaultUnlock, passphrase, remember),
+    unlockWithRecovery: (key, remember) => ipcRenderer.invoke(Channels.vaultUnlockRecovery, key, remember),
+    lock: () => ipcRenderer.invoke(Channels.vaultLock),
+    changePassphrase: (p) => ipcRenderer.invoke(Channels.vaultChangePassphrase, p),
+    onState: (l) => subscribe<VaultStatus['state']>(Channels.vaultState, l)
+  },
+  hosts: {
+    list: () => ipcRenderer.invoke(Channels.hostsList),
+    save: (id, input) => ipcRenderer.invoke(Channels.hostsSave, id, input),
+    delete: (id) => ipcRenderer.invoke(Channels.hostsDelete, id)
+  },
+  keys: {
+    list: () => ipcRenderer.invoke(Channels.keysList),
+    import: (path, name, passphrase) => ipcRenderer.invoke(Channels.keysImport, path, name, passphrase),
+    delete: (id) => ipcRenderer.invoke(Channels.keysDelete, id)
   }
 }
 

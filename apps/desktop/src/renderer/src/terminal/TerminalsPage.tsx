@@ -1,29 +1,42 @@
 import { useEffect, useRef, useState } from 'react'
-import type { OpenTerminalRequest, OS } from '../../../shared/ipc'
+import type { OS, TerminalTarget } from '../../../shared/ipc'
 import { ConnectForm } from './ConnectForm'
 import { TerminalView, type TabStatus } from './TerminalView'
-
-type Target = Omit<OpenTerminalRequest, 'cols' | 'rows'>
 
 interface Tab {
   key: string
   title: string
-  target: Target
+  target: TerminalTarget
   attempt: number
   status: TabStatus
   message?: string
 }
 
-export function TerminalsPage({ os }: { os: OS }): React.JSX.Element {
+/** Ask the page to open a tab. A new `token` each time, so the same host can be opened twice. */
+export interface OpenRequest {
+  token: number
+  title: string
+  target: TerminalTarget
+}
+
+export function TerminalsPage({ os, open }: { os: OS; open?: OpenRequest }): React.JSX.Element {
   const [tabs, setTabs] = useState<Tab[]>([])
   const [active, setActive] = useState<string | 'new'>('new')
   const counter = useRef(0)
 
-  const add = (target: Target): void => {
+  const add = (target: TerminalTarget, title: string): void => {
     const key = `t${++counter.current}`
-    setTabs((t) => [...t, { key, title: `${target.username}@${target.host}`, target, attempt: 0, status: 'connecting' }])
+    setTabs((t) => [...t, { key, title, target, attempt: 0, status: 'connecting' }])
     setActive(key)
   }
+
+  const lastOpen = useRef(0)
+  useEffect(() => {
+    if (open && open.token !== lastOpen.current) {
+      lastOpen.current = open.token
+      add(open.target, open.title)
+    }
+  }, [open])
   const patch = (key: string, p: Partial<Tab>): void => setTabs((t) => t.map((x) => (x.key === key ? { ...x, ...p } : x)))
   const close = (key: string): void => {
     setTabs((t) => t.filter((x) => x.key !== key))
@@ -74,7 +87,7 @@ export function TerminalsPage({ os }: { os: OS }): React.JSX.Element {
             )}
           </div>
         ))}
-        {(active === 'new' || tabs.length === 0) && <ConnectForm onConnect={add} />}
+        {(active === 'new' || tabs.length === 0) && <ConnectForm onConnect={(t) => add(t, `${t.username}@${t.host}`)} />}
       </div>
     </div>
   )

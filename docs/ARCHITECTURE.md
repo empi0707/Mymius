@@ -60,10 +60,27 @@ Xung đột hỏi người dùng: **Ghi đè** / **Tải bản server** (bản l
 
 Giới hạn đã biết: SFTP không có ghi có điều kiện, nên còn một khoảng hở rất ngắn giữa lần kiểm tra cuối và lệnh rename.
 
+## Lưu host trong vault
+
+```
+UI (renderer)  ──chỉ thấy bản đã che bí mật──▶  VaultService (main)  ──▶  VaultStore  ──▶  vault.json (chỉ ciphertext)
+      │  "Connect" chỉ gửi hostId                        │
+      └──────────────────────────────────────────▶ TerminalService: resolveChain → mật khẩu / khóa nằm trong main
+```
+
+- **Renderer không bao giờ nhận được mật khẩu, passphrase hay khóa riêng đã lưu.** `hosts.list()` trả `HostSummary` (không có bí mật). Khi sửa host, bí mật để trống nghĩa là "giữ nguyên" (`applyHostInput`). Kiểu dùng chung ở `shared/ipc.ts` là bản sao (renderer không được import package Node); `main/ipc-check.ts` làm biên dịch thất bại nếu chúng lệch khỏi kiểu thật.
+- **`VaultStore`**: một file JSON các bản ghi đã seal (AES-256-GCM, AAD = id bản ghi nên không thể tráo ciphertext giữa các bản ghi). Không có gì đọc được nếu thiếu khóa: tên host, người dùng, nhóm, ghi chú đều nằm trong payload. Ghi file nguyên tử, quyền 0600, mọi thay đổi xếp hàng tuần tự. File hỏng thì báo `damaged` và **không bao giờ tự tạo vault mới đè lên**.
+- **Passphrase** tối thiểu 10 ký tự (Argon2id 64 MiB x 3). **Recovery key** hiện một lần, không lưu. Đổi passphrase chỉ bọc lại khóa dữ liệu, không mã hóa lại bản ghi.
+- **Ghi nhớ trên thiết bị**: khóa dữ liệu được bọc bằng `safeStorage` (Keychain / DPAPI / keyring). Trên Linux không có keyring, Electron rơi về khóa cố định `basic_text` vốn không bảo vệ gì, nên tùy chọn này bị ẩn hẳn. "Khóa vault" luôn quên khóa đã nhớ. Tự khóa sau 15 phút không dùng, trừ khi đã ghi nhớ trên thiết bị.
+- **Khóa SSH** nhập vào vault được kiểm tra ngay (đúng là khóa riêng, passphrase đúng) và đi theo vault sang mọi thiết bị. Kiểu "key file" chỉ là đường dẫn trên máy này, đọc lúc kết nối. Xóa khóa hoặc host đang được dùng (làm khóa đăng nhập, làm jump host) bị từ chối, vòng lặp jump host bị chặn khi lưu và khi kết nối.
+- **Bản ghi đọc lên đều được kiểm tra lại** (`parseHostProfile`), bản ghi hỏng hoặc bị sửa bị bỏ qua thay vì làm hỏng cả danh sách.
+- Khi vault khóa, các terminal đang mở vẫn chạy; kết nối mới tới host đã lưu bị từ chối.
+
 ## Vault và sync tài khoản
 
 - Khóa dữ liệu ngẫu nhiên 256-bit mã hóa từng bản ghi (AES-256-GCM, AAD = id bản ghi). Khóa này chỉ tồn tại dưới dạng đã bọc bởi passphrase (Argon2id) và bởi recovery key. Đổi passphrase không phải mã hóa lại dữ liệu.
 - Bản ghi: `{ id, hlc, deleted, payload }`. Gộp theo id, bản có HLC mới nhất thắng. Phép gộp giao hoán, kết hợp và lũy đẳng nên các thiết bị hội tụ dù đọc theo thứ tự nào.
+- `VaultStore` đã có sẵn `snapshot()`, `applyRemote()` (từ chối bản ghi của vault khác qua `check`) và `bootstrap()` (thiết bị mới dựng vault từ bản của thiết bị khác, mỗi thiết bị một id đồng hồ). Chưa nối vào mạng.
 - Kế hoạch backend: Google Drive `appDataFolder` (scope `drive.appdata`), mỗi thiết bị ghi một file riêng nên không có xung đột ghi. Chưa được viết.
 
 ## Đa nền tảng

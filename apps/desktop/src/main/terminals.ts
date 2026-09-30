@@ -1,19 +1,20 @@
 import { readFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
-import path from 'node:path'
 import { defaultSshAgent } from '@mymius/platform'
 import {
   ConnectionPool,
   KnownHosts,
   SshConnection,
   TerminalHub,
-  connectionKey,
+  chainKey,
+  chainToOptions,
   parseOpenRequest,
+  resolveChain,
   type HostKeyInfo,
-  type OpenRequest,
-  type SshConnectOptions
+  type HostLookup,
+  type ResolvedHost
 } from '@mymius/ssh'
 import type { OpenTerminalResult, TerminalDataEvent, TerminalExitEvent } from '../shared/ipc'
+import { expandHome } from './vault-service'
 
 /** What the terminal service needs from Electron, so it can be exercised without it. */
 export interface TerminalHost {
@@ -24,27 +25,30 @@ export interface TerminalHost {
   sendExit(target: number, e: TerminalExitEvent): void
 }
 
-function expandHome(p: string): string {
-  return p === '~' || p.startsWith('~/') || p.startsWith('~\\') ? path.join(homedir(), p.slice(1)) : p
-}
-
-async function toConnectOptions(req: OpenRequest, verify: SshConnectOptions['verifyHostKey']): Promise<SshConnectOptions> {
-  const base = { host: req.host, port: req.port, username: req.username, verifyHostKey: verify }
+async function hopFromRequest(raw: unknown): Promise<{ hop: ResolvedHost; cols: number; rows: number }> {
+  const req = parseOpenRequest(raw)
+  const base = { id: 'adhoc', name: req.host, host: req.host, port: req.port, username: req.username }
   switch (req.auth.type) {
     case 'password':
-      return { ...base, password: req.auth.password }
+      return { hop: { ...base, auth: { type: 'password', password: req.auth.password } }, cols: req.cols, rows: req.rows }
     case 'key': {
-      const privateKey = await readFile(expandHome(req.auth.keyPath)).catch(() => {
-        throw new Error(`Cannot read the key file ${req.auth.type === 'key' ? req.auth.keyPath : ''}`)
-      })
-      return { ...base, privateKey, ...(req.auth.passphrase ? { passphrase: req.auth.passphrase } : {}) }
+      const keyPath = req.auth.keyPath
+      const privateKey = await readFile(expandHome(keyPath), 'utf8').catch(() => { throw new Error(`Cannot read the key file ${keyPath}`) })
+      return { hop: { ...base, auth: { type: 'key', privateKey, ...(req.auth.passphrase ? { passphrase: req.auth.passphrase } : {}) } }, cols: req.cols, rows: req.rows }
     }
     case 'agent': {
-      const agent = defaultSshAgent()
-      if (!agent) throw new Error('No ssh-agent found (SSH_AUTH_SOCK is not set)')
-      return { ...base, agent }
+      const socket = defaultSshAgent()
+      if (!socket) throw new Error('No ssh-agent found (SSH_AUTH_SOCK is not set)')
+      return { hop: { ...base, auth: { type: 'agent', socket } }, cols: req.cols, rows: req.rows }
     }
   }
+}
+
+function size(raw: unknown): { cols: number; rows: number } {
+  const r = (raw ?? {}) as Record<string, unknown>
+  const ok = (n: unknown): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 1 && n <= 1000
+  if (!ok(r.cols) || !ok(r.rows)) throw new Error('Invalid terminal size')
+  return { cols: r.cols, rows: r.rows }
 }
 
 /** Connects the UI's terminal tabs to SSH: validation, host key policy, connection sharing, output. */
@@ -55,7 +59,7 @@ export class TerminalService {
   /** Which window (webContents id) owns each session, so output goes to the right place. */
   private readonly owners = new Map<string, number>()
 
-  constructor(private readonly host: TerminalHost) {
+  constructor(private readonly host: TerminalHost, private readonly saved: HostLookup) {
     this.knownHosts = new KnownHosts(host.knownHostsFile)
     this.hub = new TerminalHub({
       data: (id, data) => {
@@ -76,16 +80,25 @@ export class TerminalService {
     })
   }
 
+  /** Open a terminal for a saved host (`{ hostId, cols, rows }`) or an ad-hoc one (`OpenTerminalRequest`). */
   async open(owner: number, raw: unknown): Promise<OpenTerminalResult> {
     try {
-      const req = parseOpenRequest(raw)
-      const key = connectionKey(req)
+      const r = (raw ?? {}) as Record<string, unknown>
+      let chain: ResolvedHost[]
+      let dims: { cols: number; rows: number }
+      if (typeof r.hostId === 'string') {
+        dims = size(raw)
+        chain = await resolveChain(r.hostId, this.saved)
+      } else {
+        const adhoc = await hopFromRequest(raw)
+        dims = { cols: adhoc.cols, rows: adhoc.rows }
+        chain = [adhoc.hop]
+      }
+      const key = chainKey(chain)
       const verify = this.knownHosts.verifier((info) => this.host.confirmHostKey(info))
-      const connection = await this.pool.acquire(key, async () =>
-        SshConnection.connect(await toConnectOptions(req, verify))
-      )
+      const connection = await this.pool.acquire(key, () => SshConnection.connect(chainToOptions(chain, () => verify)))
       try {
-        const session = await connection.shell({ cols: req.cols, rows: req.rows })
+        const session = await connection.shell(dims)
         const id = this.hub.add(session, () => void this.pool.release(key, connection))
         this.owners.set(id, owner)
         return { ok: true, id }

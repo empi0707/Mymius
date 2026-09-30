@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import type { OpenAuth, OpenTerminalRequest } from '../../../shared/ipc'
+import type { OpenAuth, TerminalTarget } from '../../../shared/ipc'
 
-type Target = Omit<OpenTerminalRequest, 'cols' | 'rows'>
+type Target = Extract<TerminalTarget, { host: string }>
 
 export function ConnectForm({ onConnect }: { onConnect(t: Target): void }): React.JSX.Element {
   const [host, setHost] = useState('')
@@ -22,7 +22,7 @@ export function ConnectForm({ onConnect }: { onConnect(t: Target): void }): Reac
   }
 
   return (
-    <form className="connect" onSubmit={submit}>
+    <form className="form" onSubmit={submit}>
       <h2>New connection</h2>
       <div className="row">
         <label className="grow">Host<input name="host" value={host} onChange={(e) => setHost(e.target.value)} autoFocus spellCheck={false} placeholder="example.com" /></label>

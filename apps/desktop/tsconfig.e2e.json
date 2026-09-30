@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "include": ["e2e/**/*", "src/preload/index.d.ts", "src/shared/**/*"],
+  "compilerOptions": { "lib": ["ES2023", "DOM"], "types": ["node"] }
+}
