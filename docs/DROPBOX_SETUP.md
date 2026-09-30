@@ -9,11 +9,14 @@ Dùng cho nhóm nhỏ (khoảng 20 người) không có Google Workspace. Không
 3. Tab **Permissions**: bật **cả bốn** quyền `account_info.read`, `files.metadata.read`, `files.content.read`, `files.content.write` → **Submit**. (Thiếu `files.metadata.read` thì app báo lỗi 400 "not permitted to access this endpoint" khi liệt kê file.)
    Nếu bạn bật thêm quyền sau khi đã có người đăng nhập, token cũ không tự có quyền mới: người đó phải **Sign in again**.
 4. Tab **Settings**: chép **App key**. Không cần App secret (đăng nhập dùng PKCE) và không cần đăng ký Redirect URI (app dùng luồng "dán mã", không chuyển hướng).
-5. Build app với App key nhúng sẵn:
+5. Nhúng App key vào bản build để các máy khác **không phải nhập key**, chỉ bấm Sign in:
    ```bash
-   MAIN_VITE_DROPBOX_APP_KEY=<app key> pnpm build
+   cp apps/desktop/.env.example apps/desktop/.env      # rồi điền MAIN_VITE_DROPBOX_APP_KEY=<app key>
+   pnpm dist                                           # tạo bộ cài đặt; gửi bộ cài này cho mọi người
    ```
-   (Hoặc để trống và mỗi người dán App key vào Settings → Cloud account.)
+   (Hoặc đặt biến môi trường `MAIN_VITE_DROPBOX_APP_KEY=<app key> pnpm dist`.) File `.env` không bị commit.
+
+   **Lưu ý:** App key nhập tay trong Settings chỉ lưu trên *máy đó* (`drive-settings.json`), không đi theo vault. Máy nào cài bản build *không* nhúng key sẽ vẫn hỏi App key. Vì vậy hãy phát cùng một bộ cài đã nhúng key cho cả nhóm.
 
 ## Giới hạn của Dropbox cần biết
 
