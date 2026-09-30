@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildOpenCommand, getAppPaths, isRiskyToOpen, sanitizeFileName } from '../src'
+import { buildOpenCommand, defaultSshAgent, getAppPaths, isRiskyToOpen, sanitizeFileName } from '../src'
 
 describe('getAppPaths', () => {
   it('macOS', () => {
@@ -55,5 +55,17 @@ describe('buildOpenCommand', () => {
     expect(buildOpenCommand({ file: '/t/a.txt', app: 'Sublime Text', os: 'darwin' })).toEqual({ command: 'open', args: ['-a', 'Sublime Text', '/t/a.txt'] })
     expect(buildOpenCommand({ file: 'C:\\t\\a.txt', os: 'win32' }).command).toBe('cmd.exe')
     expect(buildOpenCommand({ file: '/t/a.txt', os: 'linux' })).toEqual({ command: 'xdg-open', args: ['/t/a.txt'] })
+  })
+})
+
+describe('defaultSshAgent', () => {
+  it('uses SSH_AUTH_SOCK on macOS and Linux, and reports none when unset or empty', () => {
+    expect(defaultSshAgent('darwin', { SSH_AUTH_SOCK: '/tmp/agent.1' })).toBe('/tmp/agent.1')
+    expect(defaultSshAgent('linux', { SSH_AUTH_SOCK: '/run/user/1000/keyring/ssh' })).toBe('/run/user/1000/keyring/ssh')
+    expect(defaultSshAgent('linux', {})).toBeUndefined()
+    expect(defaultSshAgent('darwin', { SSH_AUTH_SOCK: '' })).toBeUndefined()
+  })
+  it('uses the OpenSSH named pipe on Windows regardless of env', () => {
+    expect(defaultSshAgent('win32', { SSH_AUTH_SOCK: '/ignored' })).toBe('\\\\.\\pipe\\openssh-ssh-agent')
   })
 })

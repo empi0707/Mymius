@@ -10,7 +10,8 @@
 | Remote Edit: mở file server bằng editor máy, Save là tự upload, phát hiện xung đột (Ghi đè / Tải bản server / Hủy) | Lõi xong, có test (`packages/remote-edit`) |
 | Vault mã hóa đầu-cuối + gộp bản ghi giữa các thiết bị | Lõi xong, có test (`packages/vault`) |
 | Khung Electron (bảo mật: sandbox, contextIsolation, CSP) | Có, build được |
-| Provider SFTP / FTP / S3 / WebDAV | Chưa (mới có Local) |
+| Provider Local và **SFTP** (xác thực mật khẩu / khóa / ssh-agent / keyboard-interactive, xác minh host key, hash phía server) | Xong, có test (`packages/providers`) |
+| Provider FTP / S3 / WebDAV | Chưa |
 | Terminal SSH (xterm.js + ssh2) | Chưa |
 | Sync tài khoản qua Google Drive `appDataFolder` | Chưa (vault đã sẵn sàng cho việc này) |
 | UI file manager, danh sách phiên Remote Edit, UI Folder Sync | Chưa (mới có khung) |
@@ -33,7 +34,7 @@ pnpm dist          # đóng gói cho hệ điều hành hiện tại
 packages/
   core/         interface FileSystemProvider, ghi nguyên tử, copy, hash, version
   platform/     khác biệt giữa các OS: thư mục app, tên file an toàn, mở file bằng app
-  providers/    các FileSystemProvider (hiện có: Local)
+  providers/    các FileSystemProvider (hiện có: Local, SFTP)
   folder-sync/  scan -> diff -> plan -> execute
   remote-edit/  phiên sửa file từ xa + phát hiện xung đột
   vault/        Argon2id + AES-256-GCM, recovery key, HLC, merge bản ghi
