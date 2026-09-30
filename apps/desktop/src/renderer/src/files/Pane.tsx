@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FsEntry, FsListing, FsPlace, FsSessionInfo, HostSummary } from '../../../shared/ipc'
+import { setActivities } from '../activity/activity'
 import { formatDate, formatSize } from './format'
 import { useVirtualList } from './useVirtualList'
 
@@ -83,6 +84,13 @@ export function Pane(p: PaneProps): React.JSX.Element {
     return () => { stale = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [p.session?.id, p.path, p.reload, p.status])
+
+  // Reading a folder on a server can take a while; let the corner bar say so.
+  const remote = p.session?.kind === 'sftp'
+  useEffect(() => {
+    setActivities(`list:${p.side}`, loading && remote ? [{ id: 'list', label: 'Đang tải thư mục từ máy chủ…' }] : [])
+    return () => setActivities(`list:${p.side}`, [])
+  }, [loading, remote, p.side])
 
   const rows = useMemo(() => {
     if (!listing) return []

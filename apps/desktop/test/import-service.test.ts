@@ -29,40 +29,49 @@ async function setup(file?: { name: string; text: string }, keepMs?: number, vau
   return { store, vault, svc, ctl }
 }
 const preview = async (s: Awaited<ReturnType<typeof setup>>, src: ImportSourceId): Promise<ImportPreview> => ok(await s.svc.preview(src)).preview
-const CSV = [
-  'Groups,Label,Tags,Hostname/IP,Protocol,Port,Username,Password',
-  'Prod,web-1,,10.0.0.1,ssh,2222,deploy,pw-web-secret',
-  ',db,,10.0.0.2,ssh,22,root,pw-db-secret',
-  ',tel,,10.0.0.3,telnet,23,x,y'
+const CONFIG = [
+  'Host web-1',
+  ' HostName 10.0.0.1',
+  ' Port 2222',
+  ' User deploy',
+  ' IdentityFile ~/.ssh/web_key',
+  'Host db',
+  ' HostName 10.0.0.2',
+  ' User root',
+  'Host tokens',
+  ' HostName %h.example.com',
+  ' User x',
+  ''
 ].join('\n')
+const FILE = { name: 'config', text: CONFIG }
+const SRC = 'ssh-config' as const
 
 describe('previewing', () => {
-  it('shows what would be imported and never sends a password to the UI', async () => {
-    const s = await setup({ name: 'hosts.csv', text: CSV })
-    const p = await preview(s, 'termius-csv')
-    expect(p.items.map((i) => [i.name, i.auth, i.duplicate])).toEqual([['web-1', 'password', false], ['db', 'password', false]])
-    expect(p.skipped).toHaveLength(1)
-    expect(JSON.stringify(p)).not.toContain('pw-web-secret')
-    expect(s.ctl.picked).toEqual(['termius-csv'])
+  it('shows what would be imported, and what was left out and why', async () => {
+    const s = await setup(FILE)
+    const p = await preview(s, SRC)
+    expect(p.items.map((i) => [i.name, i.auth, i.duplicate])).toEqual([['web-1', 'keyFile', false], ['db', 'agent', false]])
+    expect(p.skipped.map((x) => x.label)).toEqual(['tokens'])
+    expect(s.ctl.picked).toEqual([SRC])
   })
   it('flags hosts already in the vault by address, port and user', async () => {
-    const s = await setup({ name: 'hosts.csv', text: CSV })
+    const s = await setup(FILE)
     ok(await s.vault.saveHost(undefined, { name: 'old name', host: '10.0.0.1', port: 2222, username: 'deploy', auth: { type: 'agent' } }))
-    const p = await preview(s, 'termius-csv')
-    expect(p.items.map((i) => i.duplicate)).toEqual([true, false])
+    expect((await preview(s, SRC)).items.map((i) => i.duplicate)).toEqual([true, false])
   })
   it('the same machine on another port, or for another user, is not a duplicate; letter case in the host name does not matter', async () => {
-    const s = await setup({ name: 'hosts.csv', text: CSV })
+    const s = await setup(FILE)
     ok(await s.vault.saveHost(undefined, { name: 'a', host: '10.0.0.1', port: 22, username: 'deploy', auth: { type: 'agent' } }))
     ok(await s.vault.saveHost(undefined, { name: 'b', host: '10.0.0.2', port: 22, username: 'someone-else', auth: { type: 'agent' } }))
-    expect((await preview(s, 'termius-csv')).items.map((i) => i.duplicate)).toEqual([false, false])
-    const t = await setup({ name: 'c.csv', text: 'Hostname/IP,Username\nWEB.Example.com,u\n' }, undefined, 'vault2.json')
+    expect((await preview(s, SRC)).items.map((i) => i.duplicate)).toEqual([false, false])
+    const t = await setup({ name: 'c', text: 'Host w\n HostName WEB.Example.com\n User u\n' }, undefined, 'vault2.json')
     ok(await t.vault.saveHost(undefined, { name: 'w', host: 'web.example.com', port: 22, username: 'u', auth: { type: 'agent' } }))
-    expect((await preview(t, 'termius-csv')).items[0]!.duplicate).toBe(true)
+    expect((await preview(t, SRC)).items[0]!.duplicate).toBe(true)
   })
   it('explains a bad file, refuses a locked vault, and treats cancelling as no error', async () => {
-    const s = await setup({ name: 'x.csv', text: 'a,b\n1,2' })
-    expect(await s.svc.preview('termius-csv')).toMatchObject({ ok: false, error: expect.stringMatching(/Hostname\/IP/) })
+    const s = await setup({ name: 'x.json', text: 'not json' })
+    expect(await s.svc.preview('forklift')).toMatchObject({ ok: false, error: expect.stringMatching(/JSON/) })
+    expect(await s.svc.preview('termius-csv')).toMatchObject({ ok: false })
     expect(await s.svc.preview('nonsense')).toMatchObject({ ok: false })
     s.ctl.path = undefined
     expect(await s.svc.preview('ssh-config')).toEqual({ ok: false, error: '' })
@@ -74,44 +83,43 @@ describe('previewing', () => {
 })
 
 describe('importing', () => {
-  it('adds the chosen hosts with their passwords, groups and notes; the rest are left out', async () => {
-    const s = await setup({ name: 'hosts.csv', text: CSV })
-    const p = await preview(s, 'termius-csv')
+  it('adds only the chosen hosts, with their key file setting', async () => {
+    const s = await setup(FILE)
+    const p = await preview(s, SRC)
     const r = ok(await s.svc.commit(p.token, [p.items[0]!.id]))
     expect(r.outcome).toEqual({ created: 1, failed: [] })
     const listed = ok(s.vault.listHosts()).hosts
     expect(listed).toHaveLength(1)
-    expect(listed[0]).toMatchObject({ name: 'web-1', host: '10.0.0.1', port: 2222, username: 'deploy', group: 'Prod', authType: 'password' })
-    expect((await s.vault.lookup.resolve(listed[0]!.id)).auth).toEqual({ type: 'password', password: 'pw-web-secret' })
+    expect(listed[0]).toMatchObject({ name: 'web-1', host: '10.0.0.1', port: 2222, username: 'deploy', authType: 'keyFile' })
   })
   it('a preview can be confirmed once only, and unknown or forged ids add nothing', async () => {
-    const s = await setup({ name: 'hosts.csv', text: CSV })
-    const p = await preview(s, 'termius-csv')
+    const s = await setup(FILE)
+    const p = await preview(s, SRC)
     expect(ok(await s.svc.commit(p.token, ['99', 'x', '-1', '0', '0'])).outcome.created).toBe(1)
     expect(await s.svc.commit(p.token, ['1'])).toMatchObject({ ok: false, error: expect.stringMatching(/hết hạn/) })
     expect(await s.svc.commit('nope', [])).toMatchObject({ ok: false })
     expect(await s.svc.commit(p.token, 'all' as never)).toMatchObject({ ok: false })
   })
   it('a cancelled or expired preview cannot be confirmed, and a newer one replaces an older one', async () => {
-    const s = await setup({ name: 'hosts.csv', text: CSV })
-    const a = await preview(s, 'termius-csv')
+    const s = await setup(FILE)
+    const a = await preview(s, SRC)
     s.svc.cancel(a.token)
     expect(await s.svc.commit(a.token, ['0'])).toMatchObject({ ok: false })
-    const b = await preview(s, 'termius-csv')
-    const c = await preview(s, 'termius-csv')
+    const b = await preview(s, SRC)
+    const c = await preview(s, SRC)
     expect(await s.svc.commit(b.token, ['0'])).toMatchObject({ ok: false })
     expect(ok(await s.svc.commit(c.token, ['0'])).outcome.created).toBe(1)
   })
   it('drops what it holds when the vault locks', async () => {
-    const s = await setup({ name: 'hosts.csv', text: CSV })
-    const p = await preview(s, 'termius-csv')
+    const s = await setup(FILE)
+    const p = await preview(s, SRC)
     await s.store.lock()
     await s.store.unlock(PASS)
     expect(await s.svc.commit(p.token, ['0'])).toMatchObject({ ok: false })
   })
   it('expires by itself', async () => {
-    const s = await setup({ name: 'hosts.csv', text: CSV }, 30)
-    const p = await preview(s, 'termius-csv')
+    const s = await setup(FILE, 30)
+    const p = await preview(s, SRC)
     await new Promise((r) => setTimeout(r, 80))
     expect(await s.svc.commit(p.token, ['0'])).toMatchObject({ ok: false })
   })
@@ -142,18 +150,11 @@ describe('importing', () => {
     expect(r.outcome.created).toBe(1)
     expect(r.outcome.failed[0]).toMatchObject({ name: 'inner', error: expect.stringMatching(/không tìm thấy jump host/) })
   })
-  it('a host the vault rejects is reported by name and the others still go in', async () => {
-    const s = await setup({ name: 'hosts.csv', text: 'Label,Hostname/IP,Username,Password\ngood,g.example.com,u,p\nbad,b.example.com,u,\n' })
-    const p = await preview(s, 'termius-csv')
-    expect(p.items[1]!.auth).toBe('agent')
-    const r = ok(await s.svc.commit(p.token, ['0', '1']))
-    expect(r.outcome.created).toBe(2)
-  })
   it('importing counts as adding hosts (one backup covers it)', async () => {
-    const s = await setup({ name: 'hosts.csv', text: CSV })
+    const s = await setup(FILE)
     let changed = 0
     s.store.on('changed', () => changed++)
-    const p = await preview(s, 'termius-csv')
+    const p = await preview(s, SRC)
     ok(await s.svc.commit(p.token, ['0', '1']))
     expect(changed).toBeGreaterThan(0)
   })

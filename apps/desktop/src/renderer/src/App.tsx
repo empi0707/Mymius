@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AppInfo } from '../../shared/ipc'
+import { ActivityBar } from './activity/ActivityBar'
 import { FilesPage } from './files/FilesPage'
 import { useDrive, timeAgo } from './drive/useDrive'
 import { SettingsPage } from './settings/SettingsPage'
@@ -60,6 +61,7 @@ export function App(): React.JSX.Element {
       </aside>
       <main>
         <div className="titlebar-drag" />
+        <ActivityBar />
         {/* Kept mounted (just hidden) so switching sections never kills a running terminal. */}
         {info && (
           <div className="section" hidden={section !== 'terminals'}>

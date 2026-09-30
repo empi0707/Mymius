@@ -274,7 +274,7 @@ export interface FileSyncStatus {
   devices: number
 }
 
-export type ImportSourceId = 'termius-csv' | 'ssh-config' | 'forklift'
+export type ImportSourceId = 'ssh-config' | 'forklift'
 
 export interface ImportPreviewItem {
   id: string
@@ -283,8 +283,8 @@ export interface ImportPreviewItem {
   port: number
   username: string
   group?: string
-  /** How it will sign in. Passwords from the file never reach the UI. */
-  auth: 'password' | 'keyFile' | 'agent'
+  /** How it will sign in. */
+  auth: 'keyFile' | 'agent'
   /** Name of the host it connects through. */
   jump?: string
   /** A host with the same address, port and user is already in the vault. */

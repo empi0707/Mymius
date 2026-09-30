@@ -212,3 +212,11 @@ button.danger { padding: 7px 14px; border-radius: 6px; font: inherit; cursor: po
 .import-row:last-child { border-bottom: 0; }
 .import-row:hover { background: var(--hover); }
 .warn-text { color: var(--warn-fg); background: var(--warn-bg); padding: 6px 10px; border-radius: 6px; }
+.activity { position: fixed; top: 8px; right: 12px; z-index: 200; max-width: 260px; display: flex; align-items: center; gap: 8px; padding: 3px 8px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg-side); box-shadow: 0 1px 4px rgba(0,0,0,.12); pointer-events: none; font-size: 11px; line-height: 14px; color: var(--muted); }
+.os-darwin .activity { top: 12px; }
+.activity-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.activity-track { flex: none; width: 44px; height: 3px; border-radius: 2px; background: color-mix(in srgb, var(--fg) 16%, transparent); overflow: hidden; }
+.activity-fill { display: block; height: 100%; background: var(--accent); border-radius: 2px; transition: width .2s ease; }
+.activity-fill.indeterminate { width: 40%; animation: activity-slide 1.1s ease-in-out infinite; }
+@keyframes activity-slide { 0% { margin-left: -40%; } 100% { margin-left: 100%; } }
+@media (prefers-reduced-motion: reduce) { .activity-fill.indeterminate { animation: none; width: 100%; opacity: .5; } }

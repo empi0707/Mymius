@@ -17,6 +17,13 @@ import { VaultService } from './vault-service'
 
 const isMac = process.platform === 'darwin'
 
+// The name people see in the title bar, menu, About box and task switcher. Data stays where it already is:
+// Electron derives the data folder from the app name, so pin it before renaming or existing vaults would seem to vanish.
+const dataFolder = app.getPath('userData')
+app.setName('Mymius')
+app.setPath('userData', dataFolder)
+app.setAboutPanelOptions({ applicationName: 'Mymius' })
+
 interface DriveEndpoints { authEndpoint?: string; tokenEndpoint?: string; revokeEndpoint?: string; baseUrl?: string }
 
 let terminals: TerminalService
@@ -30,6 +37,7 @@ let osKeychain = false
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
+    title: 'Mymius',
     width: 1280,
     height: 800,
     minWidth: 900,
@@ -246,7 +254,7 @@ void app.whenReady().then(async () => {
     pick: async (source) => {
       if (e2eImportFile) return e2eImportFile
       const win = BrowserWindow.getFocusedWindow() ?? undefined
-      const filters = source === 'termius-csv' ? [{ name: 'CSV', extensions: ['csv'] }] : source === 'forklift' ? [{ name: 'JSON', extensions: ['json'] }] : []
+      const filters = source === 'forklift' ? [{ name: 'JSON', extensions: ['json'] }] : []
       const defaultPath = source === 'ssh-config' ? join(homedir(), '.ssh') : source === 'forklift' ? join(homedir(), 'Library', 'Application Support', 'ForkLift') : undefined
       const opts = { properties: ['openFile', 'showHiddenFiles'] as ('openFile' | 'showHiddenFiles')[], filters, ...(defaultPath ? { defaultPath } : {}) }
       const r = await (win ? dialog.showOpenDialog(win, opts) : dialog.showOpenDialog(opts))

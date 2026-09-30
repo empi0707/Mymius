@@ -131,6 +131,14 @@ Không cần tài khoản hay Client ID. Một file `.json` duy nhất chứa c�
 - **An toàn**: file sai MAC, thuộc vault khác hoặc không phải bundle thì **không bao giờ bị ghi đè**, app dừng và báo rõ. Bản của thiết bị khác không qua được kiểm MAC bị bỏ qua và không được chép tiếp.
 - **Giới hạn**: hai máy ghi cùng lúc thì một bản có thể bị ghi đè, nhưng máy kia sẽ thấy bản của mình vắng mặt và ghi lại nên hội tụ sau vài vòng. Nếu dịch vụ đồng bộ thư mục tạo bản "conflicted copy" thì app không đọc các bản đó. Chưa thử với iCloud/Dropbox thật, chỉ thử với hai instance dùng chung một thư mục.
 
+## Thanh tiến trình (`apps/desktop/src/renderer/src/activity`)
+
+Một kho trạng thái nhỏ (`activity-core.ts`): mỗi phần của giao diện báo danh sách việc đang chờ theo "scope" (`files`, `terminals`, `list:<pane>`), thanh (`ActivityBar`) hiển thị ở góc trên bên phải. Nguồn: tab terminal đang kết nối, pane đang kết nối hoặc đọc thư mục trên máy chủ, tác vụ sao chép/di chuyển đang chạy (có phần trăm khi biết dung lượng), file sửa từ xa đang `opening`/`uploading`. Chỉ hiện sau 200 ms và ở lại tối thiểu 600 ms để không nhấp nháy; nhiều việc cùng lúc thì hiện việc đầu tiên kèm "(+N)". Không nhận chuột.
+
+## Tên ứng dụng
+
+`app.setName('Mymius')` ở tiến trình chính (tên trong menu, hộp About, tiêu đề cửa sổ). Thư mục dữ liệu được ghim lại vị trí cũ trước khi đổi tên, vì Electron suy ra thư mục đó từ tên ứng dụng. Ở chế độ dev trên macOS, tên trên thanh menu và Dock vẫn là "Electron" vì nó đọc từ gói `Electron.app`; bản đóng gói (`pnpm dist`) dùng `productName: Mymius` của electron-builder.
+
 ## Nhập host (`packages/importers`, `apps/desktop/src/main/import-service.ts`)
 
 Ba trình đọc thuần (không I/O) trả về `{hosts, skipped, warnings}`; `ImportService` ở tiến trình chính mở hộp thoại chọn file, đọc file, đối chiếu trùng với vault và giữ kết quả (kèm mật khẩu) trong bộ nhớ dưới một token dùng một lần, hết hạn sau 10 phút hoặc khi vault khóa. Giao diện chỉ nhận bản xem trước không có bí mật và gửi lại token cùng danh sách id đã chọn; việc ghi đi qua `VaultService.saveHost`, tức cùng lớp kiểm tra như thêm host bằng tay. Jump host được nối ở lượt thứ hai sau khi mọi host đã có id. Chi tiết định dạng và giới hạn: [docs/IMPORT.md](IMPORT.md).

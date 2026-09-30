@@ -1,59 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { ImportFormatError, parseCsv, parseForkLiftFavorites, parseImport, parseSshConfig, parseTermiusCsv } from '../src'
+import { ImportFormatError, parseForkLiftFavorites, parseImport, parseSshConfig } from '../src'
 
 const ME = { defaultUser: 'me' }
-
-describe('CSV reader', () => {
-  it('handles quotes, commas, doubled quotes, newlines inside fields, CRLF and a BOM', () => {
-    expect(parseCsv('﻿a,b\r\n"x,1","he said ""hi"""\r\n"two\nlines",z')).toEqual([['a', 'b'], ['x,1', 'he said "hi"'], ['two\nlines', 'z']])
-  })
-  it('ignores blank lines and rejects an unclosed quote', () => {
-    expect(parseCsv('a\n\n \nb\n')).toEqual([['a'], ['b']])
-    expect(() => parseTermiusCsv('Hostname/IP\n"oops')).toThrow(ImportFormatError)
-  })
-})
-
-describe('Termius CSV', () => {
-  const csv = [
-    'Groups,Label,Tags,Hostname/IP,Protocol,Port,Username,Password',
-    'Prod/Web,web-1,"a,b",10.0.0.1,ssh,2222,deploy,s3cret',
-    ',db,,db.example.com,,,root,',
-    ',tel,,10.0.0.3,telnet,23,x,y',
-    ',bad,,not a host!,ssh,22,u,',
-    ',port,,h.example.com,ssh,99999,u,',
-    ',nouser,,h2.example.com,ssh,22,,'
-  ].join('\n')
-
-  it('reads hosts, groups, tags and passwords, and defaults the port', () => {
-    const r = parseTermiusCsv(csv, ME)
-    expect(r.hosts.map((h) => [h.name, h.host, h.port, h.username, h.group, h.password, h.notes])).toEqual([
-      ['web-1', '10.0.0.1', 2222, 'deploy', 'Prod/Web', 's3cret', 'Tags: a,b'],
-      ['db', 'db.example.com', 22, 'root', undefined, undefined, undefined],
-      ['nouser', 'h2.example.com', 22, 'me', undefined, undefined, undefined]
-    ])
-    expect(r.hosts[2]!.assumed).toEqual(['username'])
-    expect(r.warnings.join(' ')).toMatch(/mật khẩu/)
-  })
-  it('reports what it could not take, each with its reason', () => {
-    const r = parseTermiusCsv(csv, ME)
-    expect(r.skipped.map((s) => s.label)).toEqual(['tel', 'bad', 'port'])
-    expect(r.skipped[0]!.reason).toMatch(/telnet/)
-  })
-  it('a host name that would be read by ssh as an option is refused', () => {
-    const r = parseTermiusCsv('Hostname/IP,Username\n-oProxyCommand=evil,u\nok.example.com,u')
-    expect(r.hosts.map((h) => h.host)).toEqual(['ok.example.com'])
-    expect(r.skipped).toHaveLength(1)
-  })
-  it('without a default user, a missing username is skipped rather than invented', () => {
-    expect(parseTermiusCsv('Hostname/IP,Username\nh.example.com,\n').skipped).toHaveLength(1)
-  })
-  it('finds columns by name in any order and case, and needs a host column', () => {
-    const r = parseTermiusCsv('USERNAME,port,hostname/ip,LABEL\nu,2200,h.example.com,box')
-    expect(r.hosts[0]).toMatchObject({ name: 'box', host: 'h.example.com', port: 2200, username: 'u' })
-    expect(() => parseTermiusCsv('a,b\n1,2')).toThrow(/Hostname\/IP/)
-    expect(() => parseTermiusCsv('')).toThrow(ImportFormatError)
-  })
-})
 
 describe('ssh config', () => {
   const cfg = `
@@ -109,6 +57,14 @@ Match host foo
     expect(r.skipped.map((s) => s.label)).toEqual(['tokens'])
     expect(r.warnings.join(' ')).toMatch(/Match/)
   })
+  it('a host name that would be read by ssh as an option is refused', () => {
+    const r = parseSshConfig('Host bad\n HostName -oProxyCommand=evil\n User u\nHost ok\n HostName ok.example.com\n User u', ME)
+    expect(r.hosts.map((h) => h.host)).toEqual(['ok.example.com'])
+    expect(r.skipped).toHaveLength(1)
+  })
+  it('without a default user, a missing username is skipped rather than invented', () => {
+    expect(parseSshConfig('Host h\n HostName h.example.com').skipped).toHaveLength(1)
+  })
   it('understands Key=value, quoted values, tabs and trailing comments', () => {
     const one = parseSshConfig('Host=x\n\tHostName="h.example.com" # note\n  User = bob\n  Port=2022', ME).hosts[0]!
     expect(one).toMatchObject({ name: 'x', host: 'h.example.com', username: 'bob', port: 2022 })
@@ -143,8 +99,7 @@ describe('ForkLift favorites', () => {
   it('lists other protocols as skipped with the protocol named', () => {
     expect(r.skipped.map((s) => [s.label, s.reason.split(' ')[0]])).toEqual([['Files', 'FTP'], ['Bucket', 'Amazon']])
   })
-  it('never invents a password, and says passwords live in the Keychain', () => {
-    expect(r.hosts.every((h) => h.password === undefined)).toBe(true)
+  it('says that passwords live in the Keychain and are not imported', () => {
     expect(r.warnings.join(' ')).toMatch(/Keychain/)
   })
   it('says plainly when nothing is recognised or the file is not JSON', () => {
@@ -156,7 +111,7 @@ describe('ForkLift favorites', () => {
 describe('parseImport and limits', () => {
   it('dispatches by source', () => {
     expect(parseImport('ssh-config', 'Host a\n HostName a.x\n User u').source).toBe('ssh-config')
-    expect(parseImport('termius-csv', 'Hostname/IP,Username\na.x,u').hosts).toHaveLength(1)
+    expect(parseImport('forklift', '{\"favorites\":[{\"name\":\"n\",\"url\":\"sftp://u@a.x\"}]}').hosts).toHaveLength(1)
   })
   it('refuses absurdly large input', () => {
     expect(() => parseSshConfig('#'.repeat(6 * 1024 * 1024))).toThrow(ImportFormatError)

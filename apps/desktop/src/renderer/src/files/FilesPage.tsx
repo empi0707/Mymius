@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ConflictPolicy, EditInfo, FsEntry, FsListing, FsPlace, FsSessionInfo, HostSummary, JobState } from '../../../shared/ipc'
+import { filesActivities, setActivities } from '../activity/activity'
 import { useVault } from '../vault/useVault'
 import { JobsBar } from './JobsBar'
 import { Modal } from './Modal'
@@ -13,6 +14,8 @@ interface PaneState {
   reload: number
   status: 'ready' | 'connecting' | 'error'
   error?: string
+  /** Name of the server being connected to, while `status` is 'connecting' for one. */
+  connectingTo?: string
 }
 
 type Dialog =
@@ -86,6 +89,13 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
     if (e.state === 'error') say(`${e.name}: ${e.message ?? 'tải lên thất bại'}`, true)
   }), [say])
 
+  // What the person may be waiting for, for the bar in the corner.
+  useEffect(() => {
+    const connecting = panes.flatMap((p, side) => (p.status === 'connecting' && p.connectingTo !== undefined ? [{ side, host: p.connectingTo }] : []))
+    setActivities('files', filesActivities({ connecting, jobs, edits }))
+  }, [panes, jobs, edits])
+  useEffect(() => () => setActivities('files', []), [])
+
   // ---- dialogs as promises ----
   const ask = useCallback(<T,>(make: (resolve: (v: T) => void) => Dialog): Promise<T> => new Promise<T>((resolve) => {
     setDialog(make((v) => { setDialog(null); resolve(v) }))
@@ -102,7 +112,7 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
       if (!session) return
       patch(i, { session, path: c.path, selected: [], status: 'ready' })
     } else {
-      patch(i, { status: 'connecting', selected: [] })
+      patch(i, { status: 'connecting', selected: [], connectingTo: hosts?.find((h) => h.id === c.hostId)?.name ?? 'máy chủ' })
       const r = await window.mymius.files.connect(c.hostId)
       if (!r.ok) return patch(i, { status: 'error', error: r.error })
       patch(i, { session: r.session, path: r.session.home, status: 'ready' })

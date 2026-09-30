@@ -14,7 +14,7 @@ export interface ImportHost {
   keepMs?: number
 }
 
-const SOURCES: readonly ImportSourceId[] = ['termius-csv', 'ssh-config', 'forklift']
+const SOURCES: readonly ImportSourceId[] = ['ssh-config', 'forklift']
 const addressKey = (host: string, port: number, user: string): string => `${host.toLowerCase()}|${port}|${user}`
 
 interface Pending {
@@ -24,8 +24,7 @@ interface Pending {
 
 /**
  * Reads a host list exported from another app and adds the chosen hosts to the vault. The file is read and
- * parsed here, in the main process: passwords found in it are kept in memory only until the import is
- * confirmed or abandoned, and are never sent to the UI.
+ * parsed here, in the main process, and kept in memory only until the import is confirmed or abandoned.
  */
 export class ImportService {
   private pending = new Map<string, Pending>()
@@ -64,7 +63,7 @@ export class ImportService {
           items: parsed.hosts.map((h, i) => ({
             id: String(i), name: h.name, host: h.host, port: h.port, username: h.username,
             ...(h.group ? { group: h.group } : {}),
-            auth: h.password ? 'password' : h.keyPath ? 'keyFile' : 'agent',
+            auth: h.keyPath ? 'keyFile' : 'agent',
             ...(h.jump ? { jump: h.jump } : {}),
             duplicate: existing.has(addressKey(h.host, h.port, h.username)),
             assumed: h.assumed
@@ -93,7 +92,7 @@ export class ImportService {
     const chosen = [...new Set(ids.filter((x): x is string => typeof x === 'string'))]
       .map((id) => ({ id, host: /^\d+$/.test(id) ? p.hosts[Number(id)] : undefined }))
       .filter((c): c is { id: string; host: ImportedHost } => c.host !== undefined)
-    this.cancel(token) // one confirmation per preview, and the passwords in it are dropped either way
+    this.cancel(token) // one confirmation per preview
 
     const outcome: ImportOutcome = { created: 0, failed: [] }
     const created = new Map<string, string>() // name -> id, for connecting jump hosts
@@ -101,7 +100,7 @@ export class ImportService {
     for (const { host: h } of chosen) {
       const input: HostInput = {
         name: h.name, host: h.host, port: h.port, username: h.username,
-        auth: h.password ? { type: 'password', password: h.password } : h.keyPath ? { type: 'keyFile', path: h.keyPath } : { type: 'agent' },
+        auth: h.keyPath ? { type: 'keyFile', path: h.keyPath } : { type: 'agent' },
         ...(h.group ? { group: h.group } : {}),
         ...(h.notes ? { notes: h.notes } : {})
       }
@@ -118,8 +117,7 @@ export class ImportService {
       const target = created.get(h.jump) ?? known.get(h.jump)
       if (!target) { outcome.failed.push({ name: h.name, error: `Đã thêm, nhưng không tìm thấy jump host "${h.jump}" để nối.` }); continue }
       const base = inputs.get(h.name)!
-      const keep = base.auth.type === 'password' ? { type: 'password' as const } : base.auth // the stored password is kept
-      const r = await this.vault.saveHost(created.get(h.name), { ...base, auth: keep, jumpHostId: target })
+      const r = await this.vault.saveHost(created.get(h.name), { ...base, jumpHostId: target })
       if (!r.ok) outcome.failed.push({ name: h.name, error: `Đã thêm, nhưng không nối được jump host: ${r.error}` })
     }
     return { ok: true, outcome }

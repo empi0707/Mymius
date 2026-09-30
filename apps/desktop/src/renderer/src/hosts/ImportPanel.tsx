@@ -3,20 +3,16 @@ import type { ImportOutcome, ImportPreview, ImportSourceId } from '../../../shar
 
 const SOURCES: { id: ImportSourceId; title: string; how: string }[] = [
   {
-    id: 'termius-csv', title: 'Termius (CSV)',
-    how: 'Termius không có nút xuất dữ liệu. Hãy dùng file CSV theo mẫu nhập của Termius (Groups, Label, Tags, Hostname/IP, Protocol, Port, Username, Password) hoặc file do công cụ cộng đồng như termius-exporter tạo ra. Nếu file có mật khẩu, mật khẩu sẽ được mã hóa vào vault.'
-  },
-  {
     id: 'forklift', title: 'ForkLift (Favorites.json)',
     how: 'File nằm ở ~/Library/Application Support/ForkLift/Favorites/Favorites.json (ForkLift 3). Chỉ các mục SFTP được nhập; ForkLift lưu mật khẩu trong Keychain nên bạn sẽ phải thêm mật khẩu hoặc khóa sau đó. ForkLift 4 lưu trong database nên không đọc được.'
   },
   {
     id: 'ssh-config', title: 'OpenSSH (~/.ssh/config)',
-    how: 'Nhập mọi Host trong file config, kể cả IdentityFile và ProxyJump. Đây cũng là cách gọn nhất để đưa host từ Termius sang, vì các công cụ cộng đồng có thể xuất Termius ra định dạng này.'
+    how: 'Nhập mọi Host trong file config, kể cả IdentityFile và ProxyJump. Host không có IdentityFile sẽ dùng ssh-agent.'
   }
 ]
 
-const AUTH: Record<string, string> = { password: 'mật khẩu', keyFile: 'file khóa', agent: 'ssh-agent' }
+const AUTH: Record<string, string> = { keyFile: 'file khóa', agent: 'ssh-agent' }
 
 export function ImportPanel({ onBack, onDone }: { onBack(): void; onDone(): Promise<void> }): React.JSX.Element {
   const [preview, setPreview] = useState<ImportPreview | null>(null)
@@ -57,7 +53,7 @@ export function ImportPanel({ onBack, onDone }: { onBack(): void; onDone(): Prom
 
       {!preview && !outcome && (
         <>
-          <p className="hint">Chọn nơi bạn muốn lấy danh sách host cũ. File được đọc ngay trên máy này; mật khẩu (nếu có) chỉ được lưu vào vault đã mã hóa.</p>
+          <p className="hint">Chọn nơi bạn muốn lấy danh sách host cũ. File được đọc ngay trên máy này.</p>
           {SOURCES.map((s) => (
             <div className="card" key={s.id} data-testid={`import-source-${s.id}`}>
               <div className="row"><strong className="grow">{s.title}</strong><button className="primary" disabled={busy} onClick={() => void choose(s.id)}>Choose file…</button></div>

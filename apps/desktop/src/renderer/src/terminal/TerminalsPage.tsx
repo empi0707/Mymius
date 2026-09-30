@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { OS, TerminalTarget } from '../../../shared/ipc'
+import { setActivities } from '../activity/activity'
 import { ConnectForm } from './ConnectForm'
 import { TerminalView, type TabStatus } from './TerminalView'
 
@@ -42,6 +43,12 @@ export function TerminalsPage({ os, open }: { os: OS; open?: OpenRequest }): Rea
     setTabs((t) => t.filter((x) => x.key !== key))
     setActive((a) => (a === key ? 'new' : a))
   }
+
+  // Tabs still connecting show up in the corner bar.
+  useEffect(() => {
+    setActivities('terminals', tabs.filter((t) => t.status === 'connecting').map((t) => ({ id: `tab:${t.key}`, label: `Đang kết nối ${t.title}…` })))
+  }, [tabs])
+  useEffect(() => () => setActivities('terminals', []), [])
 
   // Cmd/Ctrl+T opens a new connection tab, like a browser.
   useEffect(() => {

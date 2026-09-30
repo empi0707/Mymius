@@ -1,4 +1,4 @@
-export type ImportSource = 'termius-csv' | 'ssh-config' | 'forklift'
+export type ImportSource = 'ssh-config' | 'forklift'
 
 /** One host as found in someone else's file, before it is checked against the vault. */
 export interface ImportedHost {
@@ -7,8 +7,6 @@ export interface ImportedHost {
   port: number
   username: string
   group?: string
-  /** Only ever present when the source file itself contained a password (Termius CSV). */
-  password?: string
   /** A key file path from the source; it means something on this device only. */
   keyPath?: string
   /** Name of another imported host (or an existing one) to connect through. */
