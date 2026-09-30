@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events'
 import { SyncFormatError, VaultLockedError, VaultMismatchError, parseMetaFile, type VaultStore } from '@mymius/vault'
-import { fingerprint, type DriveClient, type DriveFile } from './drive'
+import { fingerprint, type DriveFile, type RemoteStore } from './drive'
 import { AuthRevokedError, DriveNotFoundError, DriveQuotaError } from './errors'
 
 /** Where vault data lives in the hidden app folder. */
@@ -46,7 +46,7 @@ export interface SyncReport {
 
 export interface DriveSyncDeps {
   store: VaultStore
-  drive: DriveClient
+  drive: RemoteStore
   state: StateStorage
   now?: () => number
   /** How often to look for changes made on other devices. */
@@ -295,7 +295,7 @@ export class NoRemoteVaultError extends Error {
  * it with the passphrase or recovery key. The records are merged by the first sync after unlocking, where
  * every file is checked against the vault key before anything is accepted.
  */
-export async function restoreVault(drive: DriveClient, store: VaultStore): Promise<void> {
+export async function restoreVault(drive: RemoteStore, store: VaultStore): Promise<void> {
   const meta = (await drive.list()).find((f) => f.name === META_FILE)
   if (!meta) throw new NoRemoteVaultError()
   const parsed = parseMetaFile(await drive.download(meta.id)) // shape only: no key to check it with yet

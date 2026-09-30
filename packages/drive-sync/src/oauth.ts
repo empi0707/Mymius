@@ -164,7 +164,7 @@ export class AuthSession {
       if (status === 400 || status === 401) {
         if (body.error === 'invalid_grant' || body.error === 'invalid_client' || body.error === 'unauthorized_client') throw new AuthRevokedError(body.error)
       }
-      if (status !== 200 || !body.access_token) throw new Error(`Could not refresh the Google sign-in (${body.error ?? status})`)
+      if (status !== 200 || !body.access_token) throw new Error(`Không làm mới được phiên đăng nhập (${body.error ?? status})`)
       this.tokens = {
         ...this.tokens,
         accessToken: body.access_token,

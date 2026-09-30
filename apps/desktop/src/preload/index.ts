@@ -65,7 +65,9 @@ const api: MymiusApi = {
   drive: {
     status: () => ipcRenderer.invoke(Channels.driveStatus),
     setClient: (settings) => ipcRenderer.invoke(Channels.driveSetClient, settings),
-    connect: () => ipcRenderer.invoke(Channels.driveConnect),
+    connect: (provider) => ipcRenderer.invoke(Channels.driveConnect, provider),
+    setDropboxKey: (key) => ipcRenderer.invoke(Channels.driveSetDropboxKey, key),
+    submitDropboxCode: (code) => ipcRenderer.invoke(Channels.driveDropboxCode, code),
     cancelConnect: () => ipcRenderer.invoke(Channels.driveCancel),
     disconnect: (deleteRemote) => ipcRenderer.invoke(Channels.driveDisconnect, deleteRemote),
     syncNow: () => ipcRenderer.invoke(Channels.driveSyncNow),

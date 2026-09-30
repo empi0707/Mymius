@@ -29,6 +29,16 @@ export interface DriveClientOptions {
 const FIELDS = 'id,name,version,md5Checksum,modifiedTime,size'
 const RETRYABLE_REASONS = new Set(['rateLimitExceeded', 'userRateLimitExceeded', 'backendError', 'internalError'])
 
+/** What the sync engine needs from wherever the files live (Google Drive, Dropbox...). */
+export interface RemoteStore {
+  list(): Promise<DriveFile[]>
+  download(id: string): Promise<string>
+  create(name: string, content: string): Promise<DriveFile>
+  /** Throws DriveNotFoundError if the file is gone. */
+  update(id: string, content: string): Promise<DriveFile>
+  delete(id: string): Promise<void>
+}
+
 /** "Has this file changed since I last looked?" */
 export const fingerprint = (f: DriveFile): string => `${f.version ?? ''}:${f.md5Checksum ?? f.modifiedTime ?? ''}`
 
@@ -41,7 +51,7 @@ interface GoogleErrorBody {
  * Transient trouble (rate limits, 5xx, dropped connections) is retried with backoff; an expired token is
  * refreshed once; anything else is reported as a specific error the caller can act on.
  */
-export class DriveClient {
+export class DriveClient implements RemoteStore {
   private readonly base: string
   private readonly f: typeof fetch
   private readonly sleep: (ms: number) => Promise<void>

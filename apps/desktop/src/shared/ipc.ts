@@ -234,6 +234,8 @@ export interface EditInfo {
 
 // ---- Google Drive sync -----------------------------------------------------------------------------
 
+export type CloudProvider = 'google' | 'dropbox'
+
 export type DrivePhase = 'not-connected' | 'connecting' | 'idle' | 'syncing' | 'locked' | 'error' | 'needs-auth'
 
 export interface DriveStatus {
@@ -245,6 +247,13 @@ export interface DriveStatus {
   name?: string
   /** The sign-in credentials come with the app rather than from the user's own Google Cloud project. */
   builtInClient: boolean
+  /** A Dropbox app key is available (entered, or shipped with the build). */
+  dropboxConfigured: boolean
+  builtInDropbox: boolean
+  /** Which service the current or pending sign-in is with. */
+  provider: CloudProvider
+  /** Dropbox sign-in is waiting for the code shown on the Dropbox page. */
+  awaitingCode: boolean
   lastSyncAt?: number
   error?: string
   /** When the next automatic retry happens. */
@@ -364,6 +373,8 @@ export const Channels = {
   driveCancel: 'drive:cancel',
   driveDisconnect: 'drive:disconnect',
   driveSyncNow: 'drive:sync-now',
+  driveSetDropboxKey: 'drive:set-dropbox-key',
+  driveDropboxCode: 'drive:dropbox-code',
   importPreview: 'import:preview',
   importCommit: 'import:commit',
   importCancel: 'import:cancel',
@@ -457,7 +468,11 @@ export interface DriveApi {
    * account's Google Drive if it has one (it then needs unlocking); if not, the sign-in is kept and syncing starts
    * as soon as a vault is created here. With a vault it turns on syncing.
    */
-  connect(): Promise<Result>
+  connect(provider?: CloudProvider): Promise<Result>
+  /** Save the Dropbox app key used to sign in. */
+  setDropboxKey(appKey: string): Promise<Result>
+  /** Dropbox shows a short code after approval; paste it here to finish signing in. */
+  submitDropboxCode(code: string): Promise<Result>
   cancelConnect(): Promise<void>
   /** Sign out. `deleteRemote` also erases the synced data from Google Drive, for every device. */
   disconnect(deleteRemote: boolean): Promise<Result>

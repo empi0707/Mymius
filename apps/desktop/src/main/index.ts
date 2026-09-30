@@ -122,7 +122,9 @@ function registerIpc(): void {
   // Google Drive sync.
   ipcMain.handle(Channels.driveStatus, () => driveService.status())
   ipcMain.handle(Channels.driveSetClient, (_e, settings: unknown) => driveService.setClient(settings))
-  ipcMain.handle(Channels.driveConnect, () => driveService.connect())
+  ipcMain.handle(Channels.driveConnect, (_e, provider: unknown) => driveService.connect(provider))
+  ipcMain.handle(Channels.driveSetDropboxKey, (_e, key: unknown) => driveService.setDropboxKey(key))
+  ipcMain.handle(Channels.driveDropboxCode, (_e, code: unknown) => driveService.submitDropboxCode(code))
   ipcMain.handle(Channels.driveCancel, () => driveService.cancelConnect())
   ipcMain.handle(Channels.driveDisconnect, (_e, deleteRemote: unknown) => driveService.disconnect(deleteRemote === true))
   ipcMain.handle(Channels.driveSyncNow, () => driveService.syncNow())
@@ -182,13 +184,17 @@ void app.whenReady().then(async () => {
 
   // Only the e2e build may talk to a stand-in for Google; a real build ignores this variable entirely.
   const fake: DriveEndpoints | undefined = import.meta.env.MODE === 'e2e' && process.env.MYMIUS_E2E_GOOGLE ? (JSON.parse(process.env.MYMIUS_E2E_GOOGLE) as DriveEndpoints) : undefined
+  const fakeDropbox = import.meta.env.MODE === 'e2e' && process.env.MYMIUS_E2E_DROPBOX ? (JSON.parse(process.env.MYMIUS_E2E_DROPBOX) as NonNullable<ConstructorParameters<typeof DriveSyncService>[0]['dropboxEndpoints']>) : undefined
   driveService = new DriveSyncService(
     {
       settingsFile: join(userData, 'drive-settings.json'),
       ...(import.meta.env.MAIN_VITE_GOOGLE_CLIENT_ID ? { defaultClient: { clientId: import.meta.env.MAIN_VITE_GOOGLE_CLIENT_ID, ...(import.meta.env.MAIN_VITE_GOOGLE_CLIENT_SECRET ? { clientSecret: import.meta.env.MAIN_VITE_GOOGLE_CLIENT_SECRET } : {}) } } : {}),
       openExternal: (url) => shell.openExternal(url),
       emitStatus: (status) => { for (const w of BrowserWindow.getAllWindows()) w.webContents.send(Channels.driveStatusEvent, status) },
-      ...(fake ? { allowInsecureHttp: true, endpoints: fake, intervalMs: 500, debounceMs: 100 } : {})
+      ...(import.meta.env.MAIN_VITE_DROPBOX_APP_KEY ? { defaultDropboxAppKey: import.meta.env.MAIN_VITE_DROPBOX_APP_KEY } : {}),
+      ...(fakeDropbox ? { dropboxEndpoints: fakeDropbox } : {}),
+      ...(fake || fakeDropbox ? { allowInsecureHttp: true, intervalMs: 500, debounceMs: 100 } : {}),
+      ...(fake ? { endpoints: fake } : {})
     },
     store
   )

@@ -63,6 +63,7 @@ describe('device one: turning sync on', () => {
   })
 
   it('asks for the Google client credentials first, then signs in through the browser', async () => {
+    await one.page.click('summary:has-text("Dùng Google Drive thay thế")')
     await one.page.waitForSelector(vis('input[name=clientId]'))
     await configureClient(one.page)
     await one.page.click('button:has-text("Sign in with Google")')

@@ -12,7 +12,12 @@ export {
   type Tokens,
   type AuthorizeOptions
 } from './oauth'
-export { DriveClient, fingerprint, type DriveFile, type DriveClientOptions, type TokenSource } from './drive'
+export { DriveClient, fingerprint, type DriveFile, type DriveClientOptions, type TokenSource, type RemoteStore } from './drive'
+export { DropboxClient, type DropboxClientOptions } from './dropbox'
+export {
+  beginDropboxAuth, finishDropboxAuth, dropboxOAuthConfig, revokeDropbox,
+  DROPBOX_AUTH_ENDPOINT, DROPBOX_TOKEN_ENDPOINT, DROPBOX_API, type DropboxEndpoints
+} from './dropbox-oauth'
 export {
   DriveSync,
   restoreVault,

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Account } from './Account'
 import { ClientForm } from './ClientForm'
+import { DropboxCodeForm, DropboxKeyForm } from './DropboxForms'
 import { timeAgo, useDrive } from './useDrive'
 
 export function DriveCard(): React.JSX.Element {
@@ -24,11 +25,22 @@ export function DriveCard(): React.JSX.Element {
 
   return (
     <section className="card" data-testid="drive-card">
-      <h3>Google account</h3>
-      <p className="hint">Đăng nhập để host và khóa của bạn giống nhau trên mọi thiết bị. Mọi thứ được mã hóa bằng vault trước khi rời khỏi máy này; Google chỉ lưu các file không đọc được trong một thư mục ẩn mà chỉ ứng dụng này mở được.</p>
+      <h3>Cloud account</h3>
+      <p className="hint">Đăng nhập Dropbox hoặc Google để host và khóa của bạn giống nhau trên mọi thiết bị. Mọi thứ được mã hóa bằng vault trước khi rời khỏi máy này; dịch vụ chỉ lưu các file không đọc được trong một thư mục riêng của ứng dụng.</p>
 
-      {(!status.configured || editingClient) && !connected && (
-        <ClientForm submitLabel={status.configured ? 'Save' : 'Continue'} onSaved={() => { setEditingClient(false); void refresh() }} />
+      {status.phase === 'not-connected' && !status.awaitingCode && (
+        status.dropboxConfigured
+          ? <div className="row"><button className="primary" disabled={busy} onClick={() => void act(() => window.mymius.drive.connect('dropbox'))}>Sign in with Dropbox</button></div>
+          : <DropboxKeyForm onSaved={() => void refresh()} />
+      )}
+
+      {!status.configured && status.phase === 'not-connected' && !status.awaitingCode && (
+        <details className="issues"><summary>Dùng Google Drive thay thế</summary>
+          <ClientForm submitLabel="Continue" onSaved={() => void refresh()} />
+        </details>
+      )}
+      {status.configured && editingClient && !connected && !status.awaitingCode && (
+        <ClientForm submitLabel="Save" onSaved={() => { setEditingClient(false); void refresh() }} />
       )}
 
       {status.configured && !editingClient && status.phase === 'not-connected' && (
@@ -38,7 +50,9 @@ export function DriveCard(): React.JSX.Element {
         </div>
       )}
 
-      {status.phase === 'connecting' && (
+      {status.awaitingCode && <DropboxCodeForm onDone={() => void refresh()} />}
+
+      {status.phase === 'connecting' && !status.awaitingCode && (
         <div className="row" role="status">
           <span>Đang chờ bạn đăng nhập xong trong trình duyệt…</span>
           <span className="grow" />
@@ -48,7 +62,7 @@ export function DriveCard(): React.JSX.Element {
 
       {connected && (
         <div data-testid="drive-connected">
-          <div className="row"><Account name={status.name} email={status.email} /><span className="grow" /><span className={`badge ${status.phase}`} data-testid="drive-phase">{PHASE[status.phase]}</span></div>
+          <div className="row"><Account name={status.name} email={status.email} /><span className="grow" /><span className="badge" data-testid="drive-provider">{status.provider === 'dropbox' ? 'Dropbox' : 'Google Drive'}</span><span className={`badge ${status.phase}`} data-testid="drive-phase">{PHASE[status.phase]}</span></div>
           <p className="sub" data-testid="drive-line">
             {status.phase === 'syncing' ? 'Đang đồng bộ…'
               : status.lastSyncAt ? `Đồng bộ lần cuối ${timeAgo(status.lastSyncAt)}` : 'Chưa đồng bộ'}
@@ -63,7 +77,7 @@ export function DriveCard(): React.JSX.Element {
           {message && <p className="error" role="alert">{message}</p>}
           <div className="row">
             {status.phase === 'needs-auth'
-              ? <button className="primary" disabled={busy} onClick={() => void act(() => window.mymius.drive.connect())}>Sign in again</button>
+              ? <button className="primary" disabled={busy} onClick={() => void act(() => window.mymius.drive.connect(status.provider))}>Sign in again</button>
               : <button className="secondary" disabled={busy || status.phase === 'syncing'} onClick={() => void act(() => window.mymius.drive.syncNow())}>Sync now</button>}
             <span className="grow" />
             {!confirming && <button className="danger" onClick={() => setConfirming(true)}>Sign out…</button>}

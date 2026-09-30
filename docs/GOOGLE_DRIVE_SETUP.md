@@ -1,5 +1,8 @@
 # Cấu hình Google Drive sync
 
+> Nhóm không có Google Workspace thường sẽ gặp bước xác minh thương hiệu/domain của Google khi chuyển app sang "In production". Trường hợp đó nên dùng [Dropbox](DROPBOX_SETUP.md). Nếu công ty có Google Workspace, chọn loại consent screen **Internal** để bỏ qua toàn bộ bước xác minh.
+
+
 Mymius không kèm sẵn khóa Google; bạn tạo OAuth client của riêng mình (miễn phí).
 
 1. Vào Google Cloud Console, tạo project mới.

@@ -49,10 +49,10 @@ export function App(): React.JSX.Element {
           )}
           {drive && drive.phase !== 'not-connected' && (
             <button className="link sync-line" data-testid="sync-line" onClick={() => setSection('settings')} title={drive.error ?? ''}>
-              {drive.phase === 'error' || drive.phase === 'needs-auth' ? '⚠ Đồng bộ Drive gặp sự cố'
+              {drive.phase === 'error' || drive.phase === 'needs-auth' ? '⚠ Đồng bộ gặp sự cố'
                 : drive.phase === 'syncing' || drive.phase === 'connecting' ? '⟳ Đang đồng bộ…'
-                : drive.phase === 'locked' ? 'Đồng bộ Drive tạm dừng'
-                : drive.lastSyncAt ? `✓ Đã đồng bộ ${timeAgo(drive.lastSyncAt)}` : 'Đang bật đồng bộ Drive'}
+                : drive.phase === 'locked' ? 'Đồng bộ tạm dừng'
+                : drive.lastSyncAt ? `✓ Đã đồng bộ ${timeAgo(drive.lastSyncAt)}` : 'Đang bật đồng bộ'}
             </button>
           )}
           <div>{info ? `${info.name} ${info.version} · ${info.os}/${info.arch}` : ''}</div>

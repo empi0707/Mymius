@@ -116,6 +116,12 @@ UI (renderer)  ──chỉ thấy bản đã che bí mật──▶  VaultServic
 
 Giới hạn đã biết: máy đã có vault riêng không thể gộp vào vault trên Drive; bản xóa (tombstone) chưa được dọn nên máy offline rất lâu có thể làm sống lại bản ghi đã xóa.
 
+## Sync qua Dropbox
+
+Cùng engine, định dạng file, MAC và mã hóa như Drive; chỉ lớp lưu trữ khác. Engine chỉ cần giao diện `RemoteStore` (`list/download/create/update/delete`), do `DriveClient` (Google) và `DropboxClient` cùng cài đặt. File được đặt tên trực tiếp trong App folder (`/mymius-vault.json`, `/mymius-device-<id>.json`), `create` dùng chế độ `add` để không ghi đè file do máy khác vừa tạo, `update` dùng `overwrite`. Dấu vân tay thay đổi lấy từ `rev` + `content_hash`.
+
+Đăng nhập không chuyển hướng: mở `oauth2/authorize` với PKCE S256 và `token_access_type=offline`, người dùng dán mã Dropbox hiển thị, app đổi mã lấy access + refresh token (không có secret). `AuthSession` dùng chung cho refresh. Nhà cung cấp được lưu cùng token trong vùng niêm phong của vault (`provider`), nên khởi động lại tự tiếp tục đúng dịch vụ. Chỉ một dịch vụ hoạt động tại một thời điểm. Chưa thử với Dropbox thật: xem [docs/DROPBOX_SETUP.md](DROPBOX_SETUP.md).
+
 ## Sync và backup bằng file JSON (`packages/vault/src/bundle.ts`, `apps/desktop/src/main/file-sync-service.ts`)
 
 Không cần tài khoản hay Client ID. Một file `.json` duy nhất chứa cùng nội dung như các file trên Drive: metadata vault (khóa dữ liệu đã bọc + MAC) và một bản trạng thái đầy đủ cho mỗi thiết bị đã ghi vào (tối đa 10 thiết bị khác, kèm MAC). Toàn ciphertext nên thư mục chứa nó không cần đáng tin.

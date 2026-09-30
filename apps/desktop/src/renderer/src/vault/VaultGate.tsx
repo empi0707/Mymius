@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ClientForm } from '../drive/ClientForm'
 import { Account } from '../drive/Account'
+import { DropboxCodeForm, DropboxKeyForm } from '../drive/DropboxForms'
 import { useDrive } from '../drive/useDrive'
 import { useVault } from './useVault'
 
@@ -71,12 +72,13 @@ function SignInWithGoogle({ onRestored }: { onRestored(): void }): React.JSX.Ele
   const { status, refresh } = useDrive()
   const [error, setError] = useState('')
   const [asking, setAsking] = useState(false)
-  const connecting = status?.phase === 'connecting'
+  const [askingDropbox, setAskingDropbox] = useState(false)
+  const connecting = status?.phase === 'connecting' && !status.awaitingCode
   const signedIn = status !== null && status !== undefined && status.phase !== 'not-connected' && status.phase !== 'connecting'
 
-  const start = async (): Promise<void> => {
+  const start = async (provider: 'google' | 'dropbox'): Promise<void> => {
     setError('')
-    const r = await window.mymius.drive.connect()
+    const r = await window.mymius.drive.connect(provider)
     if (r.ok) onRestored()
     else setError(r.error)
     await refresh()
@@ -84,19 +86,23 @@ function SignInWithGoogle({ onRestored }: { onRestored(): void }): React.JSX.Ele
 
   return (
     <div className="form restore" data-testid="restore">
-      <h3>Sign in with Google</h3>
+      <h3>Sign in to sync</h3>
       {signedIn ? (
         <>
           <Account name={status.name} email={status.email} />
-          <p className="hint" data-testid="signed-in-hint">Hãy tạo vault bên dưới, vault sẽ tự động được đồng bộ với tài khoản Google này.</p>
+          <p className="hint" data-testid="signed-in-hint">Hãy tạo vault bên dưới, vault sẽ tự động được đồng bộ với tài khoản này.</p>
           <div className="row"><span className="grow" /><button className="link" onClick={() => void window.mymius.drive.disconnect(false).then(refresh)}>Sign out</button></div>
         </>
       ) : (
         <>
-          <p className="hint">Dùng tài khoản Google để đồng bộ host và khóa của bạn. Nếu bạn đã dùng Mymius trên thiết bị khác, dữ liệu sẽ về lại đây và bạn mở khóa bằng passphrase đã chọn ở thiết bị đó.</p>
-          {status && !status.configured && !asking && <button className="secondary" onClick={() => setAsking(true)}>Set up Google sign-in…</button>}
+          <p className="hint">Dùng tài khoản Dropbox hoặc Google để đồng bộ host và khóa của bạn. Nếu bạn đã dùng Mymius trên thiết bị khác, dữ liệu sẽ về lại đây và bạn mở khóa bằng passphrase đã chọn ở thiết bị đó.</p>
+          {status?.awaitingCode && <DropboxCodeForm onDone={() => { void refresh(); onRestored() }} />}
+          {status && !status.awaitingCode && status.dropboxConfigured && !connecting && <button className="secondary" onClick={() => void start('dropbox')}>Sign in with Dropbox</button>}
+          {status && !status.awaitingCode && !status.dropboxConfigured && !askingDropbox && <button className="secondary" onClick={() => setAskingDropbox(true)}>Set up Dropbox sign-in…</button>}
+          {askingDropbox && !status?.dropboxConfigured && <DropboxKeyForm onSaved={() => { setAskingDropbox(false); void refresh() }} />}
+          {status && !status.awaitingCode && !status.configured && !asking && <button className="secondary" onClick={() => setAsking(true)}>Set up Google sign-in…</button>}
           {asking && !status?.configured && <ClientForm submitLabel="Continue" onSaved={() => { setAsking(false); void refresh() }} />}
-          {status?.configured && !connecting && <button className="secondary google" onClick={() => void start()}>Sign in with Google</button>}
+          {status?.configured && !connecting && !status.awaitingCode && <button className="secondary google" onClick={() => void start('google')}>Sign in with Google</button>}
           {connecting && (
             <div className="row" role="status"><span>Đang chờ bạn đăng nhập xong trong trình duyệt…</span><span className="grow" /><button className="secondary" onClick={() => void window.mymius.drive.cancelConnect()}>Cancel</button></div>
           )}
@@ -168,7 +174,7 @@ function Unlock({ canRemember, onUnlocked }: { canRemember: boolean; onUnlocked(
     <form className="form" onSubmit={(e) => void submit(e)}>
       <h2>Unlock your vault</h2>
       {drive?.email && drive.phase === 'locked' && (
-        <p className="hint" data-testid="restored-hint">Vault của bạn đã được khôi phục từ Google Drive ({drive.email}). Hãy nhập passphrase bạn đã chọn trên thiết bị kia.</p>
+        <p className="hint" data-testid="restored-hint">Vault của bạn đã được khôi phục từ dịch vụ lưu trữ ({drive.email}). Hãy nhập passphrase bạn đã chọn trên thiết bị kia.</p>
       )}
       <label>
         {useRecovery ? 'Recovery key' : 'Passphrase'}

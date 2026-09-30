@@ -1,7 +1,7 @@
 /** The user said no on the consent screen. */
 export class OAuthDeniedError extends Error {
   constructor(readonly reason: string) {
-    super(reason === 'access_denied' ? 'Quyền truy cập Google Drive chưa được cấp' : `Google từ chối đăng nhập (${reason})`)
+    super(reason === 'access_denied' ? 'Quyền truy cập chưa được cấp' : `Đăng nhập bị từ chối (${reason})`)
     this.name = 'OAuthDeniedError'
   }
 }
@@ -20,20 +20,20 @@ export class OAuthCancelledError extends Error {
 /** The refresh token no longer works (revoked, expired, or the app was removed): the user must sign in again. */
 export class AuthRevokedError extends Error {
   constructor(detail?: string) {
-    super(`Quyền truy cập Google Drive đã bị thu hồi${detail ? ` (${detail})` : ''}. Hãy đăng nhập lại để tiếp tục đồng bộ.`)
+    super(`Quyền truy cập vào dịch vụ lưu trữ đã bị thu hồi${detail ? ` (${detail})` : ''}. Hãy đăng nhập lại để tiếp tục đồng bộ.`)
     this.name = 'AuthRevokedError'
   }
 }
 /** Google Drive has no room left. Retrying will not help until the user frees space. */
 export class DriveQuotaError extends Error {
   constructor() {
-    super('Dung lượng Google Drive của bạn đã đầy')
+    super('Dung lượng lưu trữ đám mây của bạn đã đầy')
     this.name = 'DriveQuotaError'
   }
 }
 export class DriveNotFoundError extends Error {
   constructor() {
-    super('File không còn tồn tại trên Google Drive')
+    super('File không còn tồn tại trên dịch vụ lưu trữ')
     this.name = 'DriveNotFoundError'
   }
 }
