@@ -38,6 +38,9 @@ importers:
       '@mymius/ssh':
         specifier: workspace:*
         version: link:../../packages/ssh
+      '@mymius/transfer':
+        specifier: workspace:*
+        version: link:../../packages/transfer
       '@mymius/vault':
         specifier: workspace:*
         version: link:../../packages/vault
@@ -53,6 +56,12 @@ importers:
       '@xterm/xterm':
         specifier: ^6.0.0
         version: 6.0.0
+      chokidar:
+        specifier: ^5.0.0
+        version: 5.0.0
+      picomatch:
+        specifier: ^4.0.7
+        version: 4.0.7
       react:
         specifier: ^19.3.0
         version: 19.3.0
@@ -63,6 +72,9 @@ importers:
         specifier: ^1.17.0
         version: 1.17.0
     devDependencies:
+      '@types/picomatch':
+        specifier: ^4.0.3
+        version: 4.0.3
       '@types/react':
         specifier: ^19.3.0
         version: 19.3.0
@@ -165,6 +177,19 @@ importers:
       '@types/ssh2':
         specifier: ^1.15.6
         version: 1.15.6
+
+  packages/transfer:
+    dependencies:
+      '@mymius/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@mymius/providers':
+        specifier: workspace:*
+        version: link:../providers
+      '@types/node':
+        specifier: ^26.6.3
+        version: 26.6.3
 
   packages/vault:
     dependencies:

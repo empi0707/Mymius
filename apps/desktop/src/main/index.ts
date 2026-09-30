@@ -1,9 +1,12 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from 'electron'
+import { homedir } from 'node:os'
 import { defaultSshAgent } from '@mymius/platform'
 import { VaultStore } from '@mymius/vault'
 import { Channels, type AppInfo, type OS } from '../shared/ipc'
+import { ConnectionBroker } from './connections'
+import { FilesService } from './files'
 import { OsSecretStore } from './secret-store'
 import { TerminalService } from './terminals'
 import { VaultService } from './vault-service'
@@ -11,6 +14,7 @@ import { VaultService } from './vault-service'
 const isMac = process.platform === 'darwin'
 
 let terminals: TerminalService
+let fileService: FilesService
 let vault: VaultService
 let osKeychain = false
 
@@ -43,7 +47,10 @@ function createWindow(): BrowserWindow {
   })
 
   const id = win.webContents.id
-  win.on('closed', () => terminals.closeOwnedBy(id))
+  win.on('closed', () => {
+    terminals.closeOwnedBy(id)
+    void fileService.closeOwnedBy(id)
+  })
 
   if (process.env.ELECTRON_RENDERER_URL) void win.loadURL(process.env.ELECTRON_RENDERER_URL)
   else void win.loadFile(join(__dirname, '../renderer/index.html'))
@@ -80,6 +87,25 @@ function registerIpc(): void {
   ipcMain.handle(Channels.keysImport, (_e, path: unknown, name: unknown, pass: unknown) => vault.importKey(path, name, pass))
   ipcMain.handle(Channels.keysDelete, (_e, id: unknown) => vault.deleteKey(id))
 
+  // The file manager.
+  ipcMain.handle(Channels.filesPlaces, () => fileService.places())
+  ipcMain.handle(Channels.filesConnect, (e, hostId: unknown) => fileService.connect(e.sender.id, hostId))
+  ipcMain.handle(Channels.filesDisconnect, (e, id: unknown) => fileService.disconnect(e.sender.id, id))
+  ipcMain.handle(Channels.filesList, (e, id: unknown, path: unknown) => fileService.list(e.sender.id, id, path))
+  ipcMain.handle(Channels.filesMkdir, (e, id: unknown, dir: unknown, name: unknown) => fileService.mkdir(e.sender.id, id, dir, name))
+  ipcMain.handle(Channels.filesRename, (e, id: unknown, path: unknown, name: unknown) => fileService.rename(e.sender.id, id, path, name))
+  ipcMain.handle(Channels.filesDelete, (e, id: unknown, paths: unknown) => fileService.delete(e.sender.id, id, paths))
+  ipcMain.handle(Channels.filesConflicts, (e, req: unknown) => fileService.conflicts(e.sender.id, req))
+  ipcMain.handle(Channels.filesTransfer, (e, req: unknown) => fileService.transfer(e.sender.id, req))
+  ipcMain.handle(Channels.filesCancel, (e, jobId: unknown) => fileService.cancel(e.sender.id, jobId))
+  ipcMain.handle(Channels.filesOpen, (e, id: unknown, path: unknown) => fileService.open(e.sender.id, id, path))
+  ipcMain.handle(Channels.filesJobs, (e) => fileService.listJobs(e.sender.id))
+  ipcMain.handle(Channels.syncCompare, (e, req: unknown) => fileService.syncCompare(e.sender.id, req))
+  ipcMain.handle(Channels.syncPreview, (e, req: unknown) => fileService.syncPreview(e.sender.id, req))
+  ipcMain.handle(Channels.syncRun, (e, req: unknown) => fileService.syncRun(e.sender.id, req))
+  ipcMain.handle(Channels.editList, (e) => fileService.listEdits(e.sender.id))
+  ipcMain.handle(Channels.editClose, (e, id: unknown, discard: unknown) => fileService.closeEdit(e.sender.id, id, discard))
+
   ipcMain.handle(Channels.terminalOpen, (e, req: unknown) => terminals.open(e.sender.id, req))
   ipcMain.on(Channels.terminalWrite, (e, id: unknown, data: unknown) => terminals.write(e.sender.id, id, data))
   ipcMain.on(Channels.terminalResize, (e, id: unknown, c: unknown, r: unknown) => terminals.resize(e.sender.id, id, c, r))
@@ -112,25 +138,71 @@ void app.whenReady().then(async () => {
   })
   await store.tryAutoUnlock().catch(() => false) // a damaged file is reported through vault.status() instead
 
-  terminals = new TerminalService({
-    knownHostsFile: join(app.getPath('userData'), 'known_hosts.json'),
-    confirmHostKey: async (info) => {
-      const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
-      const options = {
-        type: 'question' as const,
-        buttons: ['Cancel', 'Trust and connect'],
-        defaultId: 0, // Enter must not accept an unverified host
-        cancelId: 0,
-        title: 'Unknown host',
-        message: `The authenticity of ${info.host}${info.port === 22 ? '' : `:${info.port}`} can't be established.`,
-        detail: `Key fingerprint:\n${info.fingerprint}\n\nOnly continue if you recognise this fingerprint.`
+  const broker = new ConnectionBroker(
+    {
+      knownHostsFile: join(userData, 'known_hosts.json'),
+      confirmHostKey: async (info) => {
+        const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+        const options = {
+          type: 'question' as const,
+          buttons: ['Cancel', 'Trust and connect'],
+          defaultId: 0, // Enter must not accept an unverified host
+          cancelId: 0,
+          title: 'Unknown host',
+          message: `The authenticity of ${info.host}${info.port === 22 ? '' : `:${info.port}`} can't be established.`,
+          detail: `Key fingerprint:\n${info.fingerprint}\n\nOnly continue if you recognise this fingerprint.`
+        }
+        const r = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options)
+        return r.response === 1
       }
-      const r = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options)
-      return r.response === 1
     },
-    sendData: (target, e) => webContentsById(target)?.send(Channels.terminalData, e),
-    sendExit: (target, e) => webContentsById(target)?.send(Channels.terminalExit, e)
-  }, vault.lookup)
+    vault.lookup
+  )
+  terminals = new TerminalService(
+    {
+      sendData: (target, e) => webContentsById(target)?.send(Channels.terminalData, e),
+      sendExit: (target, e) => webContentsById(target)?.send(Channels.terminalExit, e)
+    },
+    broker,
+    vault.lookup
+  )
+  fileService = new FilesService(
+    {
+      home: homedir(),
+      workRoot: join(app.getPath('userData'), 'remote-edit'),
+      trashItem: (p) => shell.trashItem(p),
+      openLocal: async (p) => {
+        const err = await shell.openPath(p)
+        if (err) throw new Error(err)
+      },
+      confirmEditConflict: async (ctx) => {
+        const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+        const options = {
+          type: 'warning' as const,
+          buttons: ['Cancel', 'Overwrite the server file', 'Reload from the server'],
+          defaultId: 0, // Enter must not silently overwrite someone else's change
+          cancelId: 0,
+          title: ctx.kind === 'deleted' ? 'File deleted on the server' : 'File changed on the server',
+          message:
+            ctx.kind === 'deleted'
+              ? `${ctx.remotePath} no longer exists on the server.`
+              : `${ctx.remotePath} was changed on the server after you opened it.`,
+          detail:
+            ctx.kind === 'deleted'
+              ? 'Overwrite recreates it from your copy. Cancel keeps your copy here without uploading.'
+              : 'Overwrite replaces the server file with your version. Reload takes the server version and keeps your edits in a separate file next to your copy. Cancel uploads nothing.'
+        }
+        // A deleted file has nothing to reload, so that button is not offered.
+        if (ctx.kind === 'deleted') options.buttons = ['Cancel', 'Recreate the server file']
+        const r = win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options)
+        return r.response === 1 ? 'overwrite' : r.response === 2 ? 'reload' : 'cancel'
+      },
+      emitJob: (target, job) => webContentsById(target)?.send(Channels.filesJob, job),
+      emitEdit: (target, e) => webContentsById(target)?.send(Channels.editEvent, e)
+    },
+    broker,
+    vault.lookup
+  )
   registerIpc()
   createWindow()
   app.on('activate', () => {

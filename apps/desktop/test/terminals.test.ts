@@ -6,6 +6,7 @@ import { VaultStore } from '@mymius/vault'
 import { startSshTestServer, type TestServer } from '@mymius/ssh/testing'
 import type { HostKeyInfo } from '@mymius/ssh'
 import type { TerminalDataEvent, TerminalExitEvent } from '../src/shared/ipc'
+import { ConnectionBroker } from '../src/main/connections'
 import { TerminalService } from '../src/main/terminals'
 import { VaultService, type Result } from '../src/main/vault-service'
 
@@ -29,13 +30,16 @@ beforeEach(async () => {
   const store = new VaultStore(join(dir, 'vault.json'), { kdf: FAST })
   svc = new VaultService(store, { readTextFile: async () => '', agentSocket: () => undefined })
   await svc.create('a decent passphrase', false)
+  const broker = new ConnectionBroker(
+    { knownHostsFile: join(dir, 'known_hosts.json'), confirmHostKey: async (info) => { asked.push(info); return trust } },
+    svc.lookup
+  )
   terminals = new TerminalService(
     {
-      knownHostsFile: join(dir, 'known_hosts.json'),
-      confirmHostKey: async (info) => { asked.push(info); return trust },
       sendData: (_t, e: TerminalDataEvent) => output.set(e.id, (output.get(e.id) ?? '') + Buffer.from(e.data).toString()),
       sendExit: (_t, e) => exits.push(e)
     },
+    broker,
     svc.lookup
   )
 })

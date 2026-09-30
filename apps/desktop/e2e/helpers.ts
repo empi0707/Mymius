@@ -4,20 +4,33 @@ import electronPath from 'electron'
 
 export const appDir = resolve(__dirname, '..')
 
-export async function launch(profileDir: string): Promise<{ app: ElectronApplication; page: Page }> {
+export async function launch(profileDir: string, env: Record<string, string> = {}): Promise<{ app: ElectronApplication; page: Page }> {
   const app = await electron.launch({
     executablePath: electronPath as unknown as string,
     args: ['--no-sandbox', `--user-data-dir=${profileDir}`, appDir],
-    env: { ...process.env, NODE_ENV: 'production' }
+    env: { ...process.env, NODE_ENV: 'production', ...env }
   })
-  // Stand in for the user clicking "Trust and connect", and record what they would have seen.
-  await app.evaluate(({ dialog }) => {
-    const g = globalThis as unknown as { __dialogs: { message: string; detail: string }[] }
+  // Stand in for the user at the native dialogs, and for OS features that do not exist under Xvfb.
+  await app.evaluate(({ dialog, shell }) => {
+    const g = globalThis as unknown as {
+      __dialogs: { message: string; detail: string }[]
+      __nextResponse?: number
+      __opened: string[]
+      __trashed: string[]
+    }
     g.__dialogs = []
+    g.__opened = []
+    g.__trashed = []
+    // Default answer 1 = "Trust and connect" / "Overwrite". Tests set __nextResponse for other choices.
     dialog.showMessageBox = (async (...args: unknown[]) => {
       const opts = args[args.length - 1] as { message: string; detail: string }
       g.__dialogs.push({ message: opts.message, detail: opts.detail })
-      return { response: 1, checkboxChecked: false }
+      return { response: g.__nextResponse ?? 1, checkboxChecked: false }
+    }) as never
+    shell.openPath = (async (p: string) => { g.__opened.push(p); return '' }) as never
+    shell.trashItem = (async (p: string) => {
+      g.__trashed.push(p)
+      ;(process as unknown as { mainModule: NodeJS.Module }).mainModule.require('node:fs').rmSync(p, { recursive: true, force: true })
     }) as never
   })
   return { app, page: await app.firstWindow() }
@@ -65,4 +78,36 @@ export async function run(page: Page, key: string, cmd: string): Promise<void> {
   await page.keyboard.press('Enter')
 }
 
-export const goTo = (page: Page, section: 'Hosts' | 'Terminals') => page.click(`nav >> text=${section}`)
+export const goTo = (page: Page, section: 'Hosts' | 'Terminals' | 'Files' | 'Folder Sync') => page.click(`nav >> text=${section}`)
+
+export const setNextDialogAnswer = (app: ElectronApplication, n: number | undefined) =>
+  app.evaluate((_e, v) => { (globalThis as unknown as { __nextResponse?: number }).__nextResponse = v }, n)
+
+export const openedByApp = (app: ElectronApplication) =>
+  app.evaluate(() => (globalThis as unknown as { __opened: string[] }).__opened)
+
+export const trashedByApp = (app: ElectronApplication) =>
+  app.evaluate(() => (globalThis as unknown as { __trashed: string[] }).__trashed)
+
+/** Set up a fresh vault through the UI and leave it unlocked on the Hosts page. */
+export async function createVault(page: Page, passphrase: string): Promise<void> {
+  await page.waitForSelector('h2:has-text("Create your vault")')
+  await page.fill('.section:not([hidden]) input[name=passphrase]', passphrase)
+  await page.fill('.section:not([hidden]) input[name=passphrase2]', passphrase)
+  await page.click('button:has-text("Create vault")')
+  await page.check('input[name=saved]')
+  await page.click('button:has-text("Continue")')
+  await page.waitForSelector('text=No saved hosts yet')
+}
+
+export async function addPasswordHost(page: Page, opts: { name: string; port: number; username: string; password: string }): Promise<void> {
+  await page.click('button:has-text("New host")')
+  const f = (n: string) => `.section:not([hidden]) input[name=${n}]`
+  await page.fill(f('name'), opts.name)
+  await page.fill(f('host'), '127.0.0.1')
+  await page.fill(f('port'), String(opts.port))
+  await page.fill(f('username'), opts.username)
+  await page.fill(f('password'), opts.password)
+  await page.click('button[type=submit]:has-text("Save")')
+  await page.waitForSelector(`[data-testid="host-${opts.name}"]`)
+}

@@ -90,6 +90,148 @@ export interface TerminalExitEvent {
   error?: string
 }
 
+// ---- file manager ---------------------------------------------------------------------------------
+
+export type FsEntryKind = 'file' | 'directory' | 'symlink' | 'other'
+
+export interface FsEntry {
+  name: string
+  path: string
+  kind: FsEntryKind
+  size: number
+  mtimeMs: number | null
+  /** For links: what they point at, so the UI knows whether it can open them as a folder. */
+  targetKind?: FsEntryKind | 'broken'
+}
+
+export interface FsCrumb {
+  name: string
+  path: string
+}
+
+export interface FsListing {
+  sessionId: string
+  /** The canonical path that was actually listed. */
+  path: string
+  parent: string | null
+  crumbs: FsCrumb[]
+  entries: FsEntry[]
+  /** More entries exist than were returned. */
+  truncated: boolean
+}
+
+export interface FsSessionInfo {
+  id: string
+  label: string
+  kind: 'local' | 'sftp'
+  home: string
+  /** The path separator of this file system, for building paths in the UI. */
+  sep: '/' | '\\'
+  hostId?: string
+}
+
+export interface FsPlace {
+  name: string
+  path: string
+}
+
+export type ConflictPolicy = 'overwrite' | 'skip' | 'keep-both'
+
+export interface TransferRequest {
+  fromSession: string
+  paths: string[]
+  toSession: string
+  toDir: string
+  mode: 'copy' | 'move'
+  policy: ConflictPolicy
+}
+
+export interface JobIssue {
+  path: string
+  message: string
+}
+
+export interface JobState {
+  id: string
+  kind: 'copy' | 'move' | 'delete' | 'sync'
+  label: string
+  state: 'running' | 'done' | 'cancelled' | 'failed'
+  filesDone: number
+  filesTotal: number
+  bytesDone: number
+  bytesTotal: number
+  current?: string
+  errors: JobIssue[]
+  /** One-line outcome, e.g. "12 files copied, 2 skipped". */
+  summary?: string
+}
+
+export type SyncMode = 'mirror-ltr' | 'mirror-rtl' | 'two-way'
+export type SyncDirection = 'ltr' | 'rtl' | 'skip'
+export type SyncStatus = 'same' | 'left-only' | 'right-only' | 'left-newer' | 'right-newer' | 'different' | 'type-mismatch'
+
+export interface SyncEndpoint {
+  sessionId: string
+  path: string
+}
+
+export interface SyncCompareRequest {
+  left: SyncEndpoint
+  right: SyncEndpoint
+  compare: 'quick' | 'hash'
+  ignore: string[]
+}
+
+export interface SyncItem {
+  rel: string
+  status: SyncStatus
+  kind: FsEntryKind
+  leftSize?: number
+  rightSize?: number
+  leftMtimeMs?: number | null
+  rightMtimeMs?: number | null
+}
+
+export interface SyncCompareResult {
+  compareId: string
+  items: SyncItem[]
+  scanErrors: string[]
+  /** More items exist than were sent. */
+  truncated: boolean
+}
+
+export interface SyncPlanRequest {
+  compareId: string
+  mode: SyncMode
+  deleteExtras: boolean
+  /** The arrows the user changed by hand, by relative path. */
+  overrides: Record<string, SyncDirection>
+}
+
+export interface SyncSummary {
+  copies: number
+  mkdirs: number
+  deletes: number
+  bytes: number
+  conflicts: number
+}
+
+export interface SyncPreview {
+  directions: Record<string, SyncDirection>
+  summary: SyncSummary
+}
+
+export type EditState = 'opening' | 'synced' | 'uploading' | 'unsynced' | 'conflict' | 'error' | 'closed'
+
+export interface EditInfo {
+  id: string
+  name: string
+  remotePath: string
+  hostLabel: string
+  state: EditState
+  message?: string
+}
+
 export const Channels = {
   appInfo: 'app:info',
   pickPrivateKey: 'dialog:pick-private-key',
@@ -112,7 +254,26 @@ export const Channels = {
   hostsDelete: 'hosts:delete',
   keysList: 'keys:list',
   keysImport: 'keys:import',
-  keysDelete: 'keys:delete'
+  keysDelete: 'keys:delete',
+  filesPlaces: 'files:places',
+  filesConnect: 'files:connect',
+  filesDisconnect: 'files:disconnect',
+  filesList: 'files:list',
+  filesMkdir: 'files:mkdir',
+  filesRename: 'files:rename',
+  filesDelete: 'files:delete',
+  filesConflicts: 'files:conflicts',
+  filesTransfer: 'files:transfer',
+  filesCancel: 'files:cancel',
+  filesOpen: 'files:open',
+  filesJobs: 'files:jobs',
+  filesJob: 'files:job',
+  syncCompare: 'sync:compare',
+  syncPreview: 'sync:preview',
+  syncRun: 'sync:run',
+  editList: 'edit:list',
+  editClose: 'edit:close',
+  editEvent: 'edit:event'
 } as const
 
 export interface TerminalApi {
@@ -150,6 +311,34 @@ export interface KeysApi {
   delete(id: string): Promise<Result>
 }
 
+export interface FilesApi {
+  places(): Promise<Result<{ session: FsSessionInfo; places: FsPlace[] }>>
+  connect(hostId: string): Promise<Result<{ session: FsSessionInfo }>>
+  disconnect(sessionId: string): Promise<void>
+  list(sessionId: string, path?: string): Promise<Result<{ listing: FsListing }>>
+  mkdir(sessionId: string, dir: string, name: string): Promise<Result>
+  rename(sessionId: string, path: string, newName: string): Promise<Result>
+  delete(sessionId: string, paths: string[]): Promise<Result<{ jobId: string }>>
+  /** Names in the destination that already exist, so the UI can ask what to do first. */
+  conflicts(req: Omit<TransferRequest, 'policy' | 'mode'>): Promise<Result<{ names: string[] }>>
+  transfer(req: TransferRequest): Promise<Result<{ jobId: string }>>
+  cancel(jobId: string): Promise<void>
+  /** Local file: open with the system app. Remote file: edit it here and upload on every save. */
+  open(sessionId: string, path: string): Promise<Result<{ how: 'opened' | 'editing' }>>
+  jobs(): Promise<JobState[]>
+  onJob(listener: (job: JobState) => void): () => void
+  sync: {
+    compare(req: SyncCompareRequest): Promise<Result<SyncCompareResult>>
+    preview(req: SyncPlanRequest): Promise<Result<{ preview: SyncPreview }>>
+    run(req: SyncPlanRequest): Promise<Result<{ jobId: string }>>
+  }
+  edits: {
+    list(): Promise<EditInfo[]>
+    close(id: string, discard: boolean): Promise<void>
+    onEvent(listener: (e: EditInfo) => void): () => void
+  }
+}
+
 export interface MymiusApi {
   appInfo(): Promise<AppInfo>
   /** Native file picker for a private key; null when cancelled. */
@@ -158,4 +347,5 @@ export interface MymiusApi {
   vault: VaultApi
   hosts: HostsApi
   keys: KeysApi
+  files: FilesApi
 }

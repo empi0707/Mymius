@@ -26,7 +26,7 @@ export interface FileVersion {
 /** The subset of node:path a provider needs. Local uses the native flavour, remotes use posix. */
 export type PathApi = Pick<
   PlatformPath,
-  'sep' | 'join' | 'dirname' | 'basename' | 'relative' | 'isAbsolute' | 'extname'
+  'sep' | 'join' | 'dirname' | 'basename' | 'relative' | 'isAbsolute' | 'extname' | 'normalize'
 >
 
 export interface ProviderCapabilities {

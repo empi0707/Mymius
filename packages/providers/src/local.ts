@@ -23,7 +23,7 @@ function kindOf(st: { isDirectory(): boolean; isFile(): boolean; isSymbolicLink(
 
 /** The machine's own disk. Uses the native path flavour (posix on macOS/Linux, win32 on Windows). */
 export class LocalProvider implements FileSystemProvider {
-  readonly id = 'local'
+  readonly id: string = 'local'
   readonly kind = 'local'
   readonly path: PathApi = nodePath
   readonly capabilities: ProviderCapabilities = {

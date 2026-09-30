@@ -60,6 +60,27 @@ Xung đột hỏi người dùng: **Ghi đè** / **Tải bản server** (bản l
 
 Giới hạn đã biết: SFTP không có ghi có điều kiện, nên còn một khoảng hở rất ngắn giữa lần kiểm tra cuối và lệnh rename.
 
+## File manager
+
+```
+Pane (renderer) ──IPC──▶ FilesService (main) ──▶ FileSystemProvider (Local | SFTP) ──▶ đĩa / máy chủ
+                              │                       ▲
+                              ├── runTransfer / deletePaths (@mymius/transfer)
+                              ├── compareFolders / buildPlan / executePlan (@mymius/folder-sync)
+                              └── RemoteEditManager (@mymius/remote-edit)
+```
+
+- **Terminal và file pane dùng chung một kết nối** tới cùng host: `ConnectionBroker` cấp "lease" trên kết nối dùng chung (khóa gồm cả định danh thông tin đăng nhập), kết nối đóng khi lease cuối được trả. Host key của mọi bước trong chuỗi jump host đều được kiểm ở đây.
+- **`FilesService` không phụ thuộc Electron** (thùng rác, mở file, hộp thoại xung đột được tiêm vào) nên test được với SFTP thật. Mọi đường dẫn từ renderer đều được kiểm (kiểu, độ dài, NUL). Mỗi cửa sổ chỉ dùng được các kết nối, job và phiên sửa file của chính nó; đóng cửa sổ thì hủy job, đóng kết nối và kết thúc phiên sửa.
+- **`runTransfer`**: ghi qua file tạm rồi rename nên không bao giờ để file dở ở đích; giữ nguyên mtime và quyền. Di chuyển trong cùng một hệ thống tệp là `rename` (tức thì); khác hệ thống thì sao chép rồi **chỉ xóa nguồn nào đã sang đủ**. Chống sao chép thư mục vào chính nó (so sánh theo đường dẫn tương đối, nên `proj-backup` không bị nhầm là nằm trong `proj`). Liên kết (symlink) và file đặc biệt được báo là bỏ qua, không đi theo.
+- **Xóa**: trên máy này đi vào thùng rác hệ điều hành (có thể khôi phục); trên máy chủ là vĩnh viễn và hộp thoại nói rõ điều đó. Folder Sync xóa vào `.mymius-trash/<lần chạy>/`.
+- **Xung đột tên**: giao diện hỏi trước (Thay thế / Bỏ qua / Giữ cả hai) sau khi `conflicts()` liệt kê các tên trùng.
+- **Folder Sync**: so sánh -> bảng khác biệt -> `preview` (mỗi lần đổi chế độ hoặc mũi tên) -> `run` như một job. Bấm mũi tên của một mục để xoay vòng phải/trái/bỏ qua; chọn hướng cho thư mục áp dụng cho cả cây con. Từ chối hai thư mục trùng nhau hoặc lồng nhau. Kết quả so sánh chỉ sống trong bộ nhớ (tối đa 8) và gắn với cửa sổ đã tạo ra nó.
+- **Sửa file từ xa**: dùng riêng một lease kết nối nên đóng pane không làm đứt phiên sửa. Hộp thoại xung đột là hộp thoại native với nút mặc định là **Cancel** (Enter không thể vô tình ghi đè thay đổi của người khác). Thanh hoạt động hiện trạng thái của từng file, cảnh báo đỏ khi một file **chưa** lên máy chủ.
+- **Danh sách lớn**: chỉ vẽ các dòng đang thấy (chiều cao dòng cố định), nên thư mục 20.000 mục vẫn mượt. Giới hạn 20.000 mục mỗi thư mục và 50.000 khác biệt mỗi lần so sánh, có báo là bị cắt.
+
+Chưa làm: tab trong mỗi pane, kéo thả từ/đến Finder hay Explorer, xem trước, đổi tên hàng loạt, tiến độ khi đang quét thư mục lớn, FTP/S3/WebDAV.
+
 ## Lưu host trong vault
 
 ```

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AppInfo } from '../../shared/ipc'
+import { FilesPage } from './files/FilesPage'
 import { HostsPage } from './hosts/HostsPage'
 import { TerminalsPage, type OpenRequest } from './terminal/TerminalsPage'
 import { VaultGate } from './vault/VaultGate'
@@ -63,21 +64,13 @@ export function App(): React.JSX.Element {
             </VaultGate>
           </div>
         )}
-        {section === 'files' && <DualPanePlaceholder />}
+        {/* Kept mounted too: the panes' folders, selections and running jobs survive a change of section. */}
+        <div className="section" hidden={section !== 'files'}><FilesPage visible={section === 'files'} /></div>
         {section === 'sync' && <p className="empty">Folder Sync - coming soon</p>}
         {info && !info.secureStorage && (
           <p className="warn">No system keychain available: the vault can't be remembered on this device and will ask for its passphrase each time.</p>
         )}
       </main>
-    </div>
-  )
-}
-
-function DualPanePlaceholder(): React.JSX.Element {
-  return (
-    <div className="panes">
-      <section><h2>Left</h2><p className="empty">Local / SFTP / S3 ...</p></section>
-      <section><h2>Right</h2><p className="empty">Local / SFTP / S3 ...</p></section>
     </div>
   )
 }
