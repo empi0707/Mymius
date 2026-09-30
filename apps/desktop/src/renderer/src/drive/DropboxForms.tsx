@@ -13,7 +13,7 @@ export function DropboxKeyForm({ onSaved }: { onSaved(): void }): React.JSX.Elem
   return (
     <form className="inline-form" onSubmit={(e) => void submit(e)}>
       <p className="hint">
-        Để đồng bộ qua Dropbox, hãy tạo một app trên Dropbox App Console với quyền truy cập <strong>App folder</strong> (bật <code>files.content.read</code>, <code>files.content.write</code> và <code>account_info.read</code>), rồi dán <strong>App key</strong> vào đây.
+        Để đồng bộ qua Dropbox, hãy tạo một app trên Dropbox App Console với quyền truy cập <strong>App folder</strong> (bật <code>account_info.read</code>, <code>files.metadata.read</code>, <code>files.content.read</code> và <code>files.content.write</code>, rồi bấm Submit), rồi dán <strong>App key</strong> vào đây.
         Hướng dẫn từng bước trong <code>docs/DROPBOX_SETUP.md</code>.
       </p>
       <label>Dropbox app key<input name="dropboxKey" value={key} onChange={(e) => setKey(e.target.value)} spellCheck={false} placeholder="vd. a1b2c3d4e5f6g7h" /></label>

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { HOST_PREFIX, VaultStore, parseHostProfile, type HostProfile } from '@mymius/vault'
 import {
   AuthRevokedError, AuthSession, DriveError, DriveNotFoundError, DriveQuotaError, DriveSync, DropboxClient, META_FILE, OAuthDeniedError,
-  beginDropboxAuth, dropboxOAuthConfig, finishDropboxAuth, fingerprint, restoreVault, revokeDropbox, type DropboxEndpoints, type SyncState
+  DROPBOX_SCOPES, beginDropboxAuth, dropboxOAuthConfig, finishDropboxAuth, fingerprint, restoreVault, revokeDropbox, type DropboxEndpoints, type SyncState
 } from '../src'
 import { startFakeDropbox, type FakeDropbox } from '../src/testing'
 
@@ -124,6 +124,33 @@ describe('files in the app folder', () => {
     const { client: c } = await client({ maxDownloadBytes: 10 })
     d.control.write('huge.json', 'x'.repeat(100))
     await expect(c.download('/huge.json')).rejects.toMatchObject({ status: 413 })
+  })
+})
+
+describe('permissions', () => {
+  it('asks for exactly the permissions it needs', () => {
+    expect(new URL(beginDropboxAuth(d.appKey, ep).url).searchParams.get('scope')!.split(' ').sort()).toEqual([...DROPBOX_SCOPES].sort())
+  })
+  it('an app that has not switched on a permission is refused at the consent page, before any code exists', async () => {
+    await d.close()
+    d = await startFakeDropbox({ appScopes: ['account_info.read', 'files.content.read', 'files.content.write'] })
+    ep = { authEndpoint: d.authEndpoint, tokenEndpoint: d.tokenEndpoint, apiUrl: d.baseUrl }
+    expect(await d.browser(beginDropboxAuth(d.appKey, ep).url)).toBeUndefined()
+  })
+  it('a token issued before a permission was switched on says exactly which one is missing, and asks to sign in again', async () => {
+    await d.close()
+    d = await startFakeDropbox({ appScopes: ['account_info.read', 'files.content.read', 'files.content.write'] })
+    ep = { authEndpoint: d.authEndpoint, tokenEndpoint: d.tokenEndpoint, apiUrl: d.baseUrl }
+    // An older client that did not ask for a scope list gets whatever the app has.
+    const { verifier, url } = beginDropboxAuth(d.appKey, ep)
+    const u = new URL(url); u.searchParams.delete('scope')
+    const tokens = await finishDropboxAuth(d.appKey, (await d.browser(u.toString()))!, verifier, ep)
+    const c = new DropboxClient({ auth: new AuthSession(dropboxOAuthConfig(d.appKey, ep), tokens), apiUrl: d.baseUrl, contentUrl: d.baseUrl, sleep: async () => undefined })
+    const err = await c.list().catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(AuthRevokedError)
+    expect((err as Error).message).toMatch(/files\.metadata\.read/)
+    expect((err as Error).message).toMatch(/đăng nhập lại/)
+    expect(d.stats.fileRequests).toBe(0) // not retried as if it might pass
   })
 })
 

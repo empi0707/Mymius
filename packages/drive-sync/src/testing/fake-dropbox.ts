@@ -15,6 +15,8 @@ export interface FakeDropboxOptions {
   accountEmail?: string
   /** Entries returned per list_folder page, to exercise paging. */
   pageSize?: number
+  /** Permissions switched on in the app console. */
+  appScopes?: string[]
 }
 
 interface StoredFile { name: string; content: Buffer; rev: number; modified: string }
@@ -55,10 +57,12 @@ export async function startFakeDropbox(opts: FakeDropboxOptions = {}): Promise<F
   const ttl = opts.accessTokenTtlMs ?? 14_400_000
   const email = opts.accountEmail ?? 'dbx-user@example.com'
   const pageSize = opts.pageSize ?? 1000
+  const appScopes = opts.appScopes ?? ['account_info.read', 'files.metadata.read', 'files.content.read', 'files.content.write']
 
   const files = new Map<string, StoredFile>()
-  const codes = new Map<string, { challenge: string }>()
+  const codes = new Map<string, { challenge: string; scopes: string[] }>()
   const access = new Map<string, number>()
+  const tokenScopes = new Map<string, string[]>()
   const grants = new Map<string, { revoked: boolean }>()
   let failures: { n: number; status: number; body?: unknown; retryAfter?: number } | undefined
   let denyNext = false
@@ -78,12 +82,13 @@ export async function startFakeDropbox(opts: FakeDropboxOptions = {}): Promise<F
     rev: 'rev' + f.rev.toString(16).padStart(8, '0'), size: f.content.length, server_modified: f.modified,
     content_hash: createHash('sha256').update(f.content).digest('hex')
   })
-  const tokens = (withRefresh: boolean): Record<string, unknown> => {
+  const tokens = (withRefresh: boolean, scopes: string[]): Record<string, unknown> => {
     const at = 'sl.' + randomBytes(12).toString('hex')
     access.set(at, Date.now() + ttl)
+    tokenScopes.set(at, scopes)
     let rt: string | undefined
     if (withRefresh) { rt = 'dbrt-' + randomBytes(12).toString('hex'); grants.set(rt, { revoked: false }) }
-    return { access_token: at, token_type: 'bearer', expires_in: Math.round(ttl / 1000), scope: 'files.content.read files.content.write account_info.read', account_id: 'dbid:test', ...(rt ? { refresh_token: rt } : {}) }
+    return { access_token: at, token_type: 'bearer', expires_in: Math.round(ttl / 1000), scope: scopes.join(' '), account_id: 'dbid:test', ...(rt ? { refresh_token: rt } : {}) }
   }
   const nameOf = (p: string): string | undefined => (/^\/[^/]+$/.test(p) ? p.slice(1) : undefined)
 
@@ -100,9 +105,11 @@ export async function startFakeDropbox(opts: FakeDropboxOptions = {}): Promise<F
         if (q.get('code_challenge_method') !== 'S256' || !q.get('code_challenge')) return bad('PKCE S256 required')
         if (q.get('token_access_type') !== 'offline') return bad('token_access_type=offline required for a refresh token')
         if (q.get('redirect_uri')) return bad('this flow shows a code and takes no redirect_uri')
+        const requested = (q.get('scope') ?? appScopes.join(' ')).split(' ').filter(Boolean)
+        if (requested.some((x) => !appScopes.includes(x))) return bad('invalid_scope: the app has not enabled ' + requested.filter((x) => !appScopes.includes(x)).join(' '))
         if (denyNext) { denyNext = false; lastCode = undefined; res.writeHead(200, { 'Content-Type': 'text/plain' }); return void res.end('denied') }
         lastCode = 'dbcode' + randomBytes(10).toString('hex')
-        codes.set(lastCode, { challenge: q.get('code_challenge')! })
+        codes.set(lastCode, { challenge: q.get('code_challenge')!, scopes: requested })
         res.writeHead(200, { 'Content-Type': 'text/plain' })
         return void res.end(lastCode)
       }
@@ -116,13 +123,13 @@ export async function startFakeDropbox(opts: FakeDropboxOptions = {}): Promise<F
           codes.delete(f.get('code') ?? '')
           if (!c) return json(res, 400, { error: 'invalid_grant', error_description: 'code has expired or was already used' })
           if (challengeFor(f.get('code_verifier') ?? '') !== c.challenge) return json(res, 400, { error: 'invalid_grant', error_description: 'PKCE verification failed' })
-          return json(res, 200, tokens(true))
+          return json(res, 200, tokens(true, c.scopes))
         }
         if (f.get('grant_type') === 'refresh_token') {
           stats.refreshes++
           const g = grants.get(f.get('refresh_token') ?? '')
           if (!g || g.revoked) return json(res, 400, { error: 'invalid_grant' })
-          const t = tokens(false) // Dropbox keeps the same refresh token
+          const t = tokens(false, appScopes) // Dropbox keeps the same refresh token
           return json(res, 200, t)
         }
         return json(res, 400, { error: 'unsupported_grant_type' })
@@ -141,6 +148,12 @@ export async function startFakeDropbox(opts: FakeDropboxOptions = {}): Promise<F
         return json(res, 200, {})
       }
 
+      const need: Record<string, string> = { '/2/files/list_folder': 'files.metadata.read', '/2/files/list_folder/continue': 'files.metadata.read', '/2/files/download': 'files.content.read', '/2/files/upload': 'files.content.write', '/2/files/delete_v2': 'files.content.write' }
+      const required = need[p]
+      if (required && !(tokenScopes.get(bearer!) ?? []).includes(required)) {
+        res.writeHead(400, { 'Content-Type': 'text/plain' })
+        return void res.end(`Error in call to API function "${p.slice(3)}": Your app (ID: 1234567) is not permitted to access this endpoint because it does not have the required scope '${required}'. The owner of the app can add the scope in the app console.`)
+      }
       stats.fileRequests++
       stats.log.push(`${req.method} ${p}`)
       if (failures && failures.n > 0) {

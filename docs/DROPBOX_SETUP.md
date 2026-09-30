@@ -6,7 +6,8 @@ Dùng cho nhóm nhỏ (khoảng 20 người) không có Google Workspace. Không
 
 1. Vào <https://www.dropbox.com/developers/apps> → **Create app**.
 2. Chọn **Scoped access** → **App folder** → đặt tên (vd. `Mymius`). Tên này cũng là tên thư mục `Apps/Mymius` trong Dropbox của mỗi người.
-3. Tab **Permissions**: bật `files.content.read`, `files.content.write`, `account_info.read` → **Submit**.
+3. Tab **Permissions**: bật **cả bốn** quyền `account_info.read`, `files.metadata.read`, `files.content.read`, `files.content.write` → **Submit**. (Thiếu `files.metadata.read` thì app báo lỗi 400 "not permitted to access this endpoint" khi liệt kê file.)
+   Nếu bạn bật thêm quyền sau khi đã có người đăng nhập, token cũ không tự có quyền mới: người đó phải **Sign in again**.
 4. Tab **Settings**: chép **App key**. Không cần App secret (đăng nhập dùng PKCE) và không cần đăng ký Redirect URI (app dùng luồng "dán mã", không chuyển hướng).
 5. Build app với App key nhúng sẵn:
    ```bash

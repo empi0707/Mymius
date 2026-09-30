@@ -16,7 +16,7 @@ export { DriveClient, fingerprint, type DriveFile, type DriveClientOptions, type
 export { DropboxClient, type DropboxClientOptions } from './dropbox'
 export {
   beginDropboxAuth, finishDropboxAuth, dropboxOAuthConfig, revokeDropbox,
-  DROPBOX_AUTH_ENDPOINT, DROPBOX_TOKEN_ENDPOINT, DROPBOX_API, type DropboxEndpoints
+  DROPBOX_AUTH_ENDPOINT, DROPBOX_SCOPES, DROPBOX_TOKEN_ENDPOINT, DROPBOX_API, type DropboxEndpoints
 } from './dropbox-oauth'
 export {
   DriveSync,

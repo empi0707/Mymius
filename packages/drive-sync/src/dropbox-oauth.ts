@@ -17,6 +17,9 @@ export interface DropboxEndpoints {
  * Dropbox sign-in without a redirect: the person approves in their browser and Dropbox shows a short code,
  * which they paste into the app. No listener, no registered redirect address, no client secret (PKCE instead).
  */
+/** What the app needs. Asking for exactly these makes Dropbox refuse at the consent page if the app lacks one. */
+export const DROPBOX_SCOPES = ['account_info.read', 'files.metadata.read', 'files.content.read', 'files.content.write'] as const
+
 export function beginDropboxAuth(appKey: string, endpoints: DropboxEndpoints = {}): { url: string; verifier: string } {
   const { verifier, challenge } = createPkce()
   const q = new URLSearchParams({
@@ -24,7 +27,8 @@ export function beginDropboxAuth(appKey: string, endpoints: DropboxEndpoints = {
     response_type: 'code',
     code_challenge: challenge,
     code_challenge_method: 'S256',
-    token_access_type: 'offline' // a refresh token, so the sign-in lasts
+    token_access_type: 'offline', // a refresh token, so the sign-in lasts
+    scope: DROPBOX_SCOPES.join(' ')
   })
   return { url: `${endpoints.authEndpoint ?? DROPBOX_AUTH_ENDPOINT}?${q}`, verifier }
 }
@@ -56,7 +60,7 @@ export async function finishDropboxAuth(appKey: string, code: string, verifier: 
     throw new OAuthDeniedError(typeof body.error === 'string' ? body.error : String(status))
   }
   if (typeof body.refresh_token !== 'string') {
-    throw new Error('Dropbox không trả về phiên đăng nhập dài hạn. Hãy kiểm tra ứng dụng Dropbox đã bật quyền files.content.read/write và thử lại.')
+    throw new Error('Dropbox không trả về phiên đăng nhập dài hạn. Hãy kiểm tra app Dropbox đã bật đủ quyền (xem docs/DROPBOX_SETUP.md) và thử lại.')
   }
   const tokens: Tokens = {
     accessToken: body.access_token,

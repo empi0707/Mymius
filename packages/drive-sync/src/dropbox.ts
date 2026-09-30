@@ -75,18 +75,23 @@ export class DropboxClient implements RemoteStore {
         const b = JSON.parse(text) as { error_summary?: string; error?: { retry_after?: number } }
         summary = b.error_summary ?? ''
         if (!Number.isFinite(retryAfter) || retryAfter <= 0) retryAfter = Number(b.error?.retry_after)
-      } catch { summary = text.slice(0, 120) }
+      } catch { summary = text.slice(0, 400) }
 
+      // A token issued before a permission was switched on in the app console never gets it: sign in again.
+      const missing = /required scope '([a-z_.]+)'/.exec(text)?.[1]
+      if (res?.status === 400 && missing) {
+        throw new AuthRevokedError(`ứng dụng Dropbox thiếu quyền ${missing}. Hãy bật quyền này ở tab Permissions của app trên Dropbox App Console, bấm Submit, rồi đăng nhập lại`)
+      }
       if (res?.status === 409) {
         if (/not_found/.test(summary)) throw new DriveNotFoundError()
         if (/insufficient_space/.test(summary)) throw new DriveQuotaError()
-        throw new DriveError(409, summary, `Dropbox từ chối: ${summary || 'xung đột'}`)
+        throw new DriveError(409, '', `Dropbox từ chối: ${summary || 'xung đột'}`)
       }
       const retryable = !res || res.status === 408 || res.status === 429 || res.status >= 500
-      if (!retryable) throw new DriveError(res!.status, summary, `Lỗi Dropbox ${res!.status}: ${summary || res!.statusText}`)
+      if (!retryable) throw new DriveError(res!.status, '', summary || res!.statusText)
       if (attempt >= this.maxAttempts) {
         if (!res) throw new NetworkError(netErr)
-        throw new DriveError(res.status, summary, `Lỗi Dropbox ${res.status}: vẫn lỗi sau nhiều lần thử`)
+        throw new DriveError(res.status, '', 'Dropbox vẫn lỗi sau nhiều lần thử')
       }
       const backoff = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : Math.min(30_000, 500 * 2 ** (attempt - 1))
       await this.sleep(backoff + Math.floor(Math.random() * 250))

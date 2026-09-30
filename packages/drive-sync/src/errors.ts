@@ -46,7 +46,7 @@ export class NetworkError extends Error {
 }
 export class DriveError extends Error {
   constructor(readonly status: number, readonly reason: string, message: string) {
-    super(`Lỗi Google Drive ${status}${reason ? ` (${reason})` : ''}: ${message}`)
+    super(`Lỗi dịch vụ lưu trữ ${status}${reason ? ` (${reason.slice(0, 80)})` : ''}: ${message}`)
     this.name = 'DriveError'
   }
 }
