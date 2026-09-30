@@ -29,6 +29,9 @@ importers:
       '@mymius/folder-sync':
         specifier: workspace:*
         version: link:../../packages/folder-sync
+      '@mymius/importers':
+        specifier: workspace:*
+        version: link:../../packages/importers
       '@mymius/platform':
         specifier: workspace:*
         version: link:../../packages/platform
@@ -137,6 +140,12 @@ importers:
       '@types/picomatch':
         specifier: ^4.0.3
         version: 4.0.3
+
+  packages/importers:
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.3
+        version: 26.6.3
 
   packages/platform:
     dependencies:

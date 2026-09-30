@@ -1,12 +1,13 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, safeStorage, shell } from 'electron'
-import { homedir } from 'node:os'
+import { homedir, userInfo } from 'node:os'
 import { defaultSshAgent } from '@mymius/platform'
 import { VaultStore } from '@mymius/vault'
 import { Channels, type AppInfo, type OS } from '../shared/ipc'
 import { ConnectionBroker } from './connections'
 import { DriveSyncService } from './drive-service'
+import { ImportService } from './import-service'
 import { AutoBackupService } from './auto-backup-service'
 import { FileSyncService } from './file-sync-service'
 import { FilesService } from './files'
@@ -23,6 +24,7 @@ let fileService: FilesService
 let driveService: DriveSyncService
 let fileSyncService: FileSyncService
 let autoBackup: AutoBackupService
+let importService: ImportService
 let vault: VaultService
 let osKeychain = false
 
@@ -125,6 +127,9 @@ function registerIpc(): void {
   ipcMain.handle(Channels.driveDisconnect, (_e, deleteRemote: unknown) => driveService.disconnect(deleteRemote === true))
   ipcMain.handle(Channels.driveSyncNow, () => driveService.syncNow())
 
+  ipcMain.handle(Channels.importPreview, (_e, source: unknown) => importService.preview(source))
+  ipcMain.handle(Channels.importCommit, (_e, token: unknown, ids: unknown) => importService.commit(token, ids))
+  ipcMain.handle(Channels.importCancel, (_e, token: unknown) => importService.cancel(token))
   ipcMain.handle(Channels.autoBackupStatus, () => autoBackup.status())
   ipcMain.handle(Channels.autoBackupEnable, (_e, v: unknown) => autoBackup.setEnabled(v))
   ipcMain.handle(Channels.autoBackupFolder, () => autoBackup.chooseFolder())
@@ -228,6 +233,21 @@ void app.whenReady().then(async () => {
     store
   )
   await autoBackup.init()
+
+  const e2eImportFile: string | undefined = import.meta.env.MODE === 'e2e' ? process.env.MYMIUS_E2E_IMPORT_FILE : undefined
+  importService = new ImportService(vault, {
+    defaultUser: userInfo().username,
+    pick: async (source) => {
+      if (e2eImportFile) return e2eImportFile
+      const win = BrowserWindow.getFocusedWindow() ?? undefined
+      const filters = source === 'termius-csv' ? [{ name: 'CSV', extensions: ['csv'] }] : source === 'forklift' ? [{ name: 'JSON', extensions: ['json'] }] : []
+      const defaultPath = source === 'ssh-config' ? join(homedir(), '.ssh') : source === 'forklift' ? join(homedir(), 'Library', 'Application Support', 'ForkLift') : undefined
+      const opts = { properties: ['openFile', 'showHiddenFiles'] as ('openFile' | 'showHiddenFiles')[], filters, ...(defaultPath ? { defaultPath } : {}) }
+      const r = await (win ? dialog.showOpenDialog(win, opts) : dialog.showOpenDialog(opts))
+      return r.canceled ? undefined : r.filePaths[0]
+    },
+    ...(e2eImportFile ? { keepMs: 60_000 } : {})
+  })
 
   const broker = new ConnectionBroker(
     {

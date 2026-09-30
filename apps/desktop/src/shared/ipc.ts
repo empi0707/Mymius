@@ -265,6 +265,39 @@ export interface FileSyncStatus {
   devices: number
 }
 
+export type ImportSourceId = 'termius-csv' | 'ssh-config' | 'forklift'
+
+export interface ImportPreviewItem {
+  id: string
+  name: string
+  host: string
+  port: number
+  username: string
+  group?: string
+  /** How it will sign in. Passwords from the file never reach the UI. */
+  auth: 'password' | 'keyFile' | 'agent'
+  /** Name of the host it connects through. */
+  jump?: string
+  /** A host with the same address, port and user is already in the vault. */
+  duplicate: boolean
+  /** Fields the file did not give and that were filled in, e.g. "username". */
+  assumed: string[]
+}
+
+export interface ImportPreview {
+  token: string
+  source: ImportSourceId
+  fileName: string
+  items: ImportPreviewItem[]
+  skipped: { label: string; reason: string }[]
+  warnings: string[]
+}
+
+export interface ImportOutcome {
+  created: number
+  failed: { name: string; error: string }[]
+}
+
 export interface AutoBackupStatus {
   enabled: boolean
   /** Where backups are written. */
@@ -331,6 +364,9 @@ export const Channels = {
   driveCancel: 'drive:cancel',
   driveDisconnect: 'drive:disconnect',
   driveSyncNow: 'drive:sync-now',
+  importPreview: 'import:preview',
+  importCommit: 'import:commit',
+  importCancel: 'import:cancel',
   autoBackupStatus: 'autobackup:status',
   autoBackupEnable: 'autobackup:enable',
   autoBackupFolder: 'autobackup:folder',
@@ -442,6 +478,14 @@ export interface FileSyncApi {
   onStatus(listener: (s: FileSyncStatus) => void): () => void
 }
 
+export interface ImportApi {
+  /** Asks for a file with a native dialog and reads it in the main process. `error` is empty when cancelled. */
+  preview(source: ImportSourceId): Promise<Result<{ preview: ImportPreview }>>
+  /** Adds the chosen items (by id) to the vault. */
+  commit(token: string, ids: string[]): Promise<Result<{ outcome: ImportOutcome }>>
+  cancel(token: string): Promise<void>
+}
+
 export interface AutoBackupApi {
   status(): Promise<AutoBackupStatus>
   /** A backup is written each time a new host appears. */
@@ -468,4 +512,5 @@ export interface MymiusApi {
   drive: DriveApi
   fileSync: FileSyncApi
   autoBackup: AutoBackupApi
+  importer: ImportApi
 }

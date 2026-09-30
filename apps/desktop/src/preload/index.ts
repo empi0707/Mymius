@@ -40,6 +40,11 @@ const api: MymiusApi = {
     import: (path, name, passphrase) => ipcRenderer.invoke(Channels.keysImport, path, name, passphrase),
     delete: (id) => ipcRenderer.invoke(Channels.keysDelete, id)
   },
+  importer: {
+    preview: (source) => ipcRenderer.invoke(Channels.importPreview, source),
+    commit: (token, ids) => ipcRenderer.invoke(Channels.importCommit, token, ids),
+    cancel: (token) => ipcRenderer.invoke(Channels.importCancel, token)
+  },
   autoBackup: {
     status: () => ipcRenderer.invoke(Channels.autoBackupStatus),
     setEnabled: (enabled) => ipcRenderer.invoke(Channels.autoBackupEnable, enabled),

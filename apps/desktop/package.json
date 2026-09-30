@@ -19,6 +19,7 @@
     "@mymius/platform": "workspace:*",
     "@mymius/providers": "workspace:*",
     "@mymius/remote-edit": "workspace:*",
+    "@mymius/importers": "workspace:*",
     "@mymius/ssh": "workspace:*",
     "@mymius/transfer": "workspace:*",
     "@mymius/vault": "workspace:*",

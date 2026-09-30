@@ -19,6 +19,7 @@
 | **Terminal SSH** (xterm.js + ssh2): nhiều tab, resize, jump host, known_hosts (TOFU), chia sẻ kết nối, back-pressure | Xong, có test + E2E trên Electron thật |
 | **Đăng nhập Google → sync vault qua Google Drive** `appDataFolder` (OAuth PKCE, mã hóa đầu-cuối, chống sửa file, khôi phục trên máy mới) | Xong, có test + E2E hai máy với Google **giả**; **chưa thử với Google thật** (xem [docs/GOOGLE_DRIVE_SETUP.md](docs/GOOGLE_DRIVE_SETUP.md)) |
 | **Sync / backup bằng file `.json`** tùy chọn (không cần tài khoản: đặt file trong thư mục iCloud Drive, Dropbox, OneDrive, Syncthing, NAS...; sao lưu và khôi phục một lần) | Xong, có test + E2E |
+| **Nhập host cũ** từ Termius (CSV), ForkLift (`Favorites.json`) và `~/.ssh/config`: xem trước, bỏ chọn, phát hiện trùng, nối ProxyJump ([docs/IMPORT.md](docs/IMPORT.md)) | Xong, có test + E2E; định dạng ForkLift và file xuất từ Termius thật **chưa thử** |
 | **Tự động backup mỗi khi thêm host mới** (file `.json` mã hóa, mặc định bật, giữ 20 bản mới nhất, chọn được thư mục) | Xong, có test + E2E |
 | **Giao diện tiếng Việt** cho mô tả, hướng dẫn và thông báo (nút bấm giữ tiếng Anh) | Xong |
 | **Giao diện tối / sáng / theo hệ thống** | Xong, có E2E |
@@ -48,6 +49,7 @@ packages/
   folder-sync/  scan -> diff -> plan -> execute
   remote-edit/  phiên sửa file từ xa + phát hiện xung đột
   vault/        Argon2id + AES-256-GCM, recovery key, HLC, merge bản ghi, định dạng file sync có MAC
+  importers/    đọc danh sách host từ Termius CSV, ForkLift, ssh config
   drive-sync/   OAuth loopback + PKCE, client Drive appDataFolder, engine đồng bộ
 apps/desktop/   Electron (main / preload / renderer React)
 ```

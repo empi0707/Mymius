@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { HostInput, HostSummary, KeySummary } from '../../../shared/ipc'
 import { HostEditor } from './HostEditor'
+import { ImportPanel } from './ImportPanel'
 import { KeysPanel } from './KeysPanel'
 
-type View = { kind: 'list' } | { kind: 'edit'; host?: HostSummary } | { kind: 'keys' }
+type View = { kind: 'list' } | { kind: 'edit'; host?: HostSummary } | { kind: 'keys' } | { kind: 'import' }
 
 export function HostsPage({ onConnect }: { onConnect(host: HostSummary): void }): React.JSX.Element {
   const [hosts, setHosts] = useState<HostSummary[]>([])
@@ -37,6 +38,9 @@ export function HostsPage({ onConnect }: { onConnect(host: HostSummary): void })
     return [...by.entries()].sort(([a], [b]) => (a === '' ? -1 : b === '' ? 1 : a.localeCompare(b)))
   }, [hosts, query])
 
+  if (view.kind === 'import') {
+    return <ImportPanel onBack={() => setView({ kind: 'list' })} onDone={reload} />
+  }
   if (view.kind === 'keys') {
     return <KeysPanel keys={keys} onChanged={reload} onBack={() => setView({ kind: 'list' })} />
   }
@@ -67,6 +71,7 @@ export function HostsPage({ onConnect }: { onConnect(host: HostSummary): void })
     <div className="hosts">
       <div className="toolbar">
         <input type="search" aria-label="Search hosts" placeholder="Search hosts" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <button className="secondary" onClick={() => setView({ kind: 'import' })}>Import…</button>
         <button className="secondary" onClick={() => setView({ kind: 'keys' })}>Keys ({keys.length})</button>
         <button className="primary" onClick={() => setView({ kind: 'edit' })}>New host</button>
       </div>
