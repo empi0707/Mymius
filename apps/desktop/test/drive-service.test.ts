@@ -203,11 +203,39 @@ describe('setting up a new device from Google Drive', () => {
     expect(names(a.store)).toEqual(['from-device-a', 'from-device-b'])
   })
 
-  it('says so when the Google account has no vault, and leaves this device empty', async () => {
+  it('a new account with no vault stays signed in, and syncs the moment a vault is created here', async () => {
     const b = await setup('b', { client: true })
-    expect(await b.service.connect()).toMatchObject({ ok: false, error: expect.stringMatching(/No vault from this app/) })
+    expect(await b.service.connect()).toEqual({ ok: true })
     expect(await b.store.state()).toBe('uninitialized')
+    expect(await b.service.status()).toMatchObject({ phase: 'locked', email: 'user@example.com', name: 'Test user' })
+    expect(driveNames()).toEqual([])
+    await b.store.create(PASS)
+    await hosts(b.store).put(host('first-host'))
+    await until(() => driveNames().includes(META_FILE), 'the new vault to reach Drive')
+    await until(async () => (await b.service.status()).phase === 'idle', 'sync to settle')
+    // and it is a real, restorable vault: a second device gets the host
+    const c = await setup('c', { client: true })
+    await c.service.connect(); await c.store.unlock(PASS)
+    await until(() => names(c.store).includes('first-host'), 'the host to arrive')
+  })
+
+  it('signing out before creating a vault forgets the sign-in', async () => {
+    const b = await setup('b', { client: true })
+    await b.service.connect()
+    expect(await b.service.disconnect(false)).toEqual({ ok: true })
     expect((await b.service.status()).phase).toBe('not-connected')
+    await b.store.create(PASS)
+    await new Promise((r) => setTimeout(r, 200))
+    expect(driveNames()).toEqual([])
+  })
+
+  it('uses the credentials shipped with the app when the user entered none, and prefers their own if they did', async () => {
+    const b = await setup('b', { host: { defaultClient: { clientId: g.clientId, clientSecret: g.clientSecret } } })
+    expect(await b.service.status()).toMatchObject({ configured: true, builtInClient: true })
+    expect(await b.service.connect()).toEqual({ ok: true })
+    await b.service.disconnect(false)
+    expect(await b.service.setClient({ clientId: 'mine.apps.googleusercontent.com' })).toEqual({ ok: true })
+    expect(await b.service.status()).toMatchObject({ configured: true, builtInClient: false })
   })
 
   it('the wrong passphrase gets nowhere and nothing is stored', async () => {

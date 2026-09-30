@@ -11,4 +11,6 @@ Mymius không kèm sẵn khóa Google; bạn tạo OAuth client của riêng mì
 5. Trong Mymius: **Settings → Google Drive**, dán Client ID/Secret, bấm **Connect** và đăng nhập trong trình duyệt.
 6. Máy khác: cấu hình cùng Client ID, ở màn hình tạo vault chọn khôi phục từ Drive, nhập passphrase.
 
+Nhà phát hành app có thể nhúng sẵn client khi build (`MAIN_VITE_GOOGLE_CLIENT_ID`, `MAIN_VITE_GOOGLE_CLIENT_SECRET` trong môi trường lúc `pnpm build`); khi đó người dùng chỉ cần bấm **Sign in with Google**, không phải làm các bước 1-4.
+
 Ghi chú: dữ liệu trên Drive được mã hóa; Google chỉ thấy file mờ trong `appDataFolder`. Chưa thử với Google thật trong phiên phát triển này.

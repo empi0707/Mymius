@@ -65,7 +65,7 @@ describe('device one: turning sync on', () => {
   it('asks for the Google client credentials first, then signs in through the browser', async () => {
     await one.page.waitForSelector(vis('input[name=clientId]'))
     await configureClient(one.page)
-    await one.page.click('button:has-text("Connect Google Drive")')
+    await one.page.click('button:has-text("Sign in with Google")')
     await one.page.waitForSelector('[data-testid=drive-connected]', { timeout: 20_000 })
     expect(await one.page.textContent('[data-testid=drive-connected]')).toContain('user@example.com')
     const url = new URL((await H.externalUrls(one.app))[0]!)
@@ -98,18 +98,18 @@ describe('device two: restoring from Google Drive', () => {
     await two.page.waitForSelector('h2:has-text("Create your vault")')
     await two.page.click('button:has-text("Set up Google sign-in")')
     await configureClient(two.page)
-    await two.page.waitForSelector('button:has-text("Restore from Google Drive")')
+    await two.page.waitForSelector('button:has-text("Sign in with Google")')
   })
 
   it('a refused consent screen is explained and nothing changes', async () => {
     g.control.denyNextConsent()
-    await two.page.click('button:has-text("Restore from Google Drive")')
+    await two.page.click('button:has-text("Sign in with Google")')
     await two.page.waitForSelector('[data-testid=restore] [role=alert]:has-text("not granted")', { timeout: 15_000 })
     await two.page.waitForSelector('h2:has-text("Create your vault")')
   })
 
   it('restores, asks for the passphrase, refuses a wrong one, and brings the hosts in with the right one', async () => {
-    await two.page.click('button:has-text("Restore from Google Drive")')
+    await two.page.click('button:has-text("Sign in with Google")')
     await two.page.waitForSelector('h2:has-text("Unlock your vault")', { timeout: 20_000 })
     expect(await two.page.textContent('[data-testid=restored-hint]')).toContain('user@example.com')
     await two.page.fill(vis('input[name=passphrase]'), 'not the passphrase')
@@ -200,9 +200,9 @@ describe('losing and regaining access', () => {
 describe('disconnecting', () => {
   it('signs out of Google and keeps the local vault; the other device is unaffected', async () => {
     await H.goTo(one.page, 'Settings')
-    await one.page.click('button:has-text("Disconnect…")')
-    await one.page.click('button:has-text("Disconnect")>>nth=-1')
-    await one.page.waitForSelector('button:has-text("Connect Google Drive")')
+    await one.page.click('button:has-text("Sign out…")')
+    await one.page.click('button:has-text("Sign out")>>nth=-1')
+    await one.page.waitForSelector('button:has-text("Sign in with Google")')
     expect(g.stats.revocations).toBeGreaterThanOrEqual(1)
     expect(await one.page.locator('[data-testid=sync-line]').count()).toBe(0)
     await H.goTo(one.page, 'Hosts')
@@ -216,10 +216,10 @@ describe('disconnecting', () => {
     // Every sign-in was revoked earlier; device two has not signed in again.
     await H.goTo(two.page, 'Settings')
     await two.page.locator('[data-testid=drive-phase]:has-text("sign in needed")').waitFor({ timeout: 20_000 })
-    await two.page.click('button:has-text("Disconnect…")')
+    await two.page.click('button:has-text("Sign out…")')
     await two.page.check(vis('input[name=deleteRemote]'))
-    await two.page.click('button:has-text("Disconnect")>>nth=-1')
-    await two.page.waitForSelector('button:has-text("Connect Google Drive")')
+    await two.page.click('button:has-text("Sign out")>>nth=-1')
+    await two.page.waitForSelector('button:has-text("Sign in with Google")')
     await two.page.waitForSelector('[role=alert]:has-text("could not be erased")')
     expect(filesOnDrive()).toHaveLength(2) // untouched: the shared metadata and device two's own file (device one's left earlier)
     expect(filesOnDrive()).toContain(META_KEEP)
@@ -227,12 +227,32 @@ describe('disconnecting', () => {
 
   it('can erase the synced data from Drive when signed in', async () => {
     await H.goTo(two.page, 'Settings')
-    await two.page.click('button:has-text("Connect Google Drive")')
+    await two.page.click('button:has-text("Sign in with Google")')
     await two.page.locator('[data-testid=drive-phase]').waitFor({ timeout: 20_000 })
-    await two.page.click('button:has-text("Disconnect…")')
+    await two.page.click('button:has-text("Sign out…")')
     await two.page.check(vis('input[name=deleteRemote]'))
-    await two.page.click('button:has-text("Disconnect")>>nth=-1')
-    await two.page.waitForSelector('button:has-text("Connect Google Drive")')
+    await two.page.click('button:has-text("Sign out")>>nth=-1')
+    await two.page.waitForSelector('button:has-text("Sign in with Google")')
     expect(filesOnDrive()).toEqual([])
+  })
+})
+
+describe('a brand-new Google account', () => {
+  let three: Awaited<ReturnType<typeof launchDevice>>
+  afterAll(async () => { await three?.app.close().catch(() => undefined) })
+
+  it('signs in before any vault exists, shows who it is, and the vault created next syncs by itself', async () => {
+    three = await launchDevice('three')
+    await three.page.waitForSelector('h2:has-text("Create your vault")')
+    await three.page.click('button:has-text("Set up Google sign-in")')
+    await configureClient(three.page)
+    await three.page.click('button:has-text("Sign in with Google")')
+    await three.page.waitForSelector('[data-testid=signed-in-hint]', { timeout: 20_000 })
+    expect(await three.page.textContent('[data-testid=account-name]')).toBe('Test user')
+    expect(await three.page.textContent('[data-testid=account-email]')).toBe('user@example.com')
+    expect(filesOnDrive()).toEqual([]) // nothing to upload yet
+    await H.createVault(three.page, PASS)
+    await until(() => filesOnDrive().length === 2, 'the new vault to be uploaded')
+    expect(await three.page.textContent('[data-testid=account-line]')).toBe('Test user')
   })
 })

@@ -6,6 +6,7 @@ export {
   revoke,
   AuthSession,
   emailFromIdToken,
+  nameFromIdToken,
   DRIVE_APPDATA_SCOPE,
   type OAuthConfig,
   type Tokens,

@@ -241,6 +241,10 @@ export interface DriveStatus {
   configured: boolean
   phase: DrivePhase
   email?: string
+  /** Display name of the signed-in Google account. */
+  name?: string
+  /** The sign-in credentials come with the app rather than from the user's own Google Cloud project. */
+  builtInClient: boolean
   lastSyncAt?: number
   error?: string
   /** When the next automatic retry happens. */
@@ -378,8 +382,9 @@ export interface DriveApi {
   /** Save the OAuth client ID (and secret, which Google issues for desktop clients) used to sign in. */
   setClient(settings: DriveClientSettings): Promise<Result>
   /**
-   * Sign in with Google in the system browser. With no vault on this device this restores the vault
-   * from Google Drive (it then needs unlocking); otherwise it turns on syncing.
+   * Sign in with Google in the system browser. With no vault on this device this restores the vault from the
+   * account's Google Drive if it has one (it then needs unlocking); if not, the sign-in is kept and syncing starts
+   * as soon as a vault is created here. With a vault it turns on syncing.
    */
   connect(): Promise<Result>
   cancelConnect(): Promise<void>

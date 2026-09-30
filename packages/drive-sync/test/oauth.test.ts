@@ -2,7 +2,7 @@ import http from 'node:http'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   AuthRevokedError, AuthSession, NetworkError, OAuthCancelledError, OAuthDeniedError, OAuthTimeoutError,
-  authorize, challengeFor, createPkce, emailFromIdToken, revoke, startLoopback, type OAuthConfig
+  authorize, challengeFor, createPkce, emailFromIdToken, nameFromIdToken, revoke, startLoopback, type OAuthConfig
 } from '../src'
 import { startFakeGoogle, type FakeGoogle } from '../src/testing'
 
@@ -126,6 +126,7 @@ describe('signing in', () => {
     expect(t.refreshToken).toMatch(/^rt-/)
     expect(t.accessToken).toMatch(/^at-/)
     expect(t.email).toBe('user@example.com')
+    expect(t.name).toBe('Test user')
     expect(t.expiresAt).toBeGreaterThan(Date.now())
     expect(g.stats.codeExchanges).toBe(1)
   })
@@ -137,7 +138,7 @@ describe('signing in', () => {
     expect(q.get('code_challenge_method')).toBe('S256')
     expect(q.get('access_type')).toBe('offline')
     expect(q.get('response_type')).toBe('code')
-    expect(q.get('scope')!.split(' ').sort()).toEqual(['email', 'https://www.googleapis.com/auth/drive.appdata', 'openid'])
+    expect(q.get('scope')!.split(' ').sort()).toEqual(['email', 'https://www.googleapis.com/auth/drive.appdata', 'openid', 'profile'])
     expect(q.get('redirect_uri')).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/callback$/)
     expect(q.get('state')!.length).toBeGreaterThanOrEqual(24)
     expect(seen!.toString()).not.toContain(g.clientSecret) // the secret never goes through the browser
@@ -214,6 +215,9 @@ describe('signing in', () => {
   it('decodes the account from the ID token for display, and shrugs at garbage', () => {
     const jwt = ['h', Buffer.from(JSON.stringify({ email: 'me@example.com' })).toString('base64url'), 's'].join('.')
     expect(emailFromIdToken(jwt)).toBe('me@example.com')
+    const named = ['h', Buffer.from(JSON.stringify({ name: '  Ada\u0007 Lovelace ' })).toString('base64url'), 's'].join('.')
+    expect(nameFromIdToken(named)).toBe('Ada Lovelace')
+    expect(nameFromIdToken(undefined)).toBeUndefined()
     for (const bad of [undefined, '', 'a.b', 'a.!!!.c', ['h', Buffer.from('{"email":5}').toString('base64url'), 's'].join('.')]) expect(emailFromIdToken(bad)).toBeUndefined()
   })
 })

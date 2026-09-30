@@ -23,13 +23,15 @@ export interface Tokens {
   /** Milliseconds since epoch. */
   expiresAt: number
   email?: string
+  /** Display name from the Google profile. */
+  name?: string
 }
 
 const DEFAULTS = {
   authEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
   tokenEndpoint: 'https://oauth2.googleapis.com/token',
   revokeEndpoint: 'https://oauth2.googleapis.com/revoke',
-  scopes: ['openid', 'email', DRIVE_APPDATA_SCOPE]
+  scopes: ['openid', 'email', 'profile', DRIVE_APPDATA_SCOPE]
 }
 
 interface TokenResponse {
@@ -56,6 +58,17 @@ async function postForm(cfg: OAuthConfig, url: string, form: Record<string, stri
   }
   const body = (await res.json().catch(() => ({}))) as TokenResponse
   return { status: res.status, body }
+}
+
+/** Display name of who signed in, read from the ID token for display only. */
+export function nameFromIdToken(idToken: string | undefined): string | undefined {
+  try {
+    const payload = JSON.parse(Buffer.from(idToken?.split('.')[1] ?? '', 'base64url').toString('utf8')) as { name?: unknown }
+    const n = typeof payload.name === 'string' ? payload.name.replace(/[\u0000-\u001f]/g, '').trim().slice(0, 100) : ''
+    return n || undefined
+  } catch {
+    return undefined
+  }
 }
 
 /** Who signed in, read from the ID token for display only. It is not used for any decision. */
@@ -113,7 +126,8 @@ export async function authorize(cfg: OAuthConfig, opts: AuthorizeOptions): Promi
     }
     const now = (opts.now ?? Date.now)()
     const email = emailFromIdToken(body.id_token)
-    return { accessToken: body.access_token, refreshToken: body.refresh_token, expiresAt: now + (body.expires_in ?? 3600) * 1000, ...(email ? { email } : {}) }
+    const name = nameFromIdToken(body.id_token)
+    return { accessToken: body.access_token, refreshToken: body.refresh_token, expiresAt: now + (body.expires_in ?? 3600) * 1000, ...(email ? { email } : {}), ...(name ? { name } : {}) }
   } finally {
     await loop.close()
   }

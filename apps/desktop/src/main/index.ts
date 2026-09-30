@@ -159,6 +159,7 @@ void app.whenReady().then(async () => {
   driveService = new DriveSyncService(
     {
       settingsFile: join(userData, 'drive-settings.json'),
+      ...(import.meta.env.MAIN_VITE_GOOGLE_CLIENT_ID ? { defaultClient: { clientId: import.meta.env.MAIN_VITE_GOOGLE_CLIENT_ID, ...(import.meta.env.MAIN_VITE_GOOGLE_CLIENT_SECRET ? { clientSecret: import.meta.env.MAIN_VITE_GOOGLE_CLIENT_SECRET } : {}) } } : {}),
       openExternal: (url) => shell.openExternal(url),
       emitStatus: (status) => { for (const w of BrowserWindow.getAllWindows()) w.webContents.send(Channels.driveStatusEvent, status) },
       ...(fake ? { allowInsecureHttp: true, endpoints: fake, intervalMs: 500, debounceMs: 100 } : {})

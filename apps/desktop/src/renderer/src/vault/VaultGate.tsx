@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ClientForm } from '../drive/ClientForm'
+import { Account } from '../drive/Account'
 import { useDrive } from '../drive/useDrive'
 import { useVault } from './useVault'
 
@@ -59,17 +60,18 @@ function Setup({ canRemember, onCreated, onRestored }: { canRemember: boolean; o
       {error && <p className="error" role="alert">{error}</p>}
       <button type="submit" className="primary" disabled={busy || pass.length === 0}>Create vault</button>
     </form>
-    <RestoreFromDrive onRestored={onRestored} />
+    <SignInWithGoogle onRestored={onRestored} />
     </div>
   )
 }
 
-/** For someone who already uses the app elsewhere: pull the vault down from their Google Drive. */
-function RestoreFromDrive({ onRestored }: { onRestored(): void }): React.JSX.Element {
+/** Sign in with Google before anything else: restores an existing vault from the account, or syncs the new one. */
+function SignInWithGoogle({ onRestored }: { onRestored(): void }): React.JSX.Element {
   const { status, refresh } = useDrive()
   const [error, setError] = useState('')
   const [asking, setAsking] = useState(false)
   const connecting = status?.phase === 'connecting'
+  const signedIn = status !== null && status !== undefined && status.phase !== 'not-connected' && status.phase !== 'connecting'
 
   const start = async (): Promise<void> => {
     setError('')
@@ -81,13 +83,23 @@ function RestoreFromDrive({ onRestored }: { onRestored(): void }): React.JSX.Ele
 
   return (
     <div className="form restore" data-testid="restore">
-      <h3>Already use Mymius on another device?</h3>
-      <p className="hint">Sign in with Google to bring your hosts and keys here. You will unlock them with the passphrase you chose on the other device.</p>
-      {status && !status.configured && !asking && <button className="secondary" onClick={() => setAsking(true)}>Set up Google sign-in…</button>}
-      {asking && !status?.configured && <ClientForm submitLabel="Continue" onSaved={() => { setAsking(false); void refresh() }} />}
-      {status?.configured && !connecting && <button className="secondary" onClick={() => void start()}>Restore from Google Drive</button>}
-      {connecting && (
-        <div className="row" role="status"><span>Waiting for you to finish signing in, in your browser…</span><span className="grow" /><button className="secondary" onClick={() => void window.mymius.drive.cancelConnect()}>Cancel</button></div>
+      <h3>Sign in with Google</h3>
+      {signedIn ? (
+        <>
+          <Account name={status.name} email={status.email} />
+          <p className="hint" data-testid="signed-in-hint">Create your vault below and it will be synced to this Google account automatically.</p>
+          <div className="row"><span className="grow" /><button className="link" onClick={() => void window.mymius.drive.disconnect(false).then(refresh)}>Sign out</button></div>
+        </>
+      ) : (
+        <>
+          <p className="hint">Use your Google account to keep your hosts and keys in sync. If you already use Mymius on another device, they come back here and you unlock them with the passphrase you chose there.</p>
+          {status && !status.configured && !asking && <button className="secondary" onClick={() => setAsking(true)}>Set up Google sign-in…</button>}
+          {asking && !status?.configured && <ClientForm submitLabel="Continue" onSaved={() => { setAsking(false); void refresh() }} />}
+          {status?.configured && !connecting && <button className="secondary google" onClick={() => void start()}>Sign in with Google</button>}
+          {connecting && (
+            <div className="row" role="status"><span>Waiting for you to finish signing in, in your browser…</span><span className="grow" /><button className="secondary" onClick={() => void window.mymius.drive.cancelConnect()}>Cancel</button></div>
+          )}
+        </>
       )}
       {error && <p className="error" role="alert">{error}</p>}
     </div>

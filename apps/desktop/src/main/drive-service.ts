@@ -10,6 +10,8 @@ import type { DriveClientSettings, DriveStatus, Result } from '../shared/ipc'
 export interface DriveHost {
   /** Where the OAuth client ID is kept. It is configuration, not a secret. */
   settingsFile: string
+  /** Credentials shipped with the build; used when the user has not entered their own. */
+  defaultClient?: DriveClientSettings
   /** Show a URL in the user's own browser. */
   openExternal(url: string): Promise<void>
   emitStatus(status: DriveStatus): void
@@ -40,6 +42,7 @@ export class DriveSyncService {
   private engine: DriveSync | undefined
   private auth: AuthSession | undefined
   private email: string | undefined
+  private name: string | undefined
   private connecting = false
   private cancel: (() => void) | undefined
   /** Credentials obtained while the vault is locked or missing: kept in memory until it can hold them. */
@@ -97,9 +100,15 @@ export class DriveSyncService {
     return { ok: true }
   }
 
+  /** The user's own credentials win over the ones shipped with the build. */
+  private get client(): DriveClientSettings | undefined {
+    return this.settings ?? this.host.defaultClient
+  }
+
   private oauth(): OAuthConfig {
-    if (!this.settings) throw new Error(NOT_CONFIGURED)
-    return { clientId: this.settings.clientId, ...(this.settings.clientSecret ? { clientSecret: this.settings.clientSecret } : {}), ...this.host.endpoints && {
+    const client = this.client
+    if (!client) throw new Error(NOT_CONFIGURED)
+    return { clientId: client.clientId, ...(client.clientSecret ? { clientSecret: client.clientSecret } : {}), ...this.host.endpoints && {
       ...(this.host.endpoints.authEndpoint ? { authEndpoint: this.host.endpoints.authEndpoint } : {}),
       ...(this.host.endpoints.tokenEndpoint ? { tokenEndpoint: this.host.endpoints.tokenEndpoint } : {}),
       ...(this.host.endpoints.revokeEndpoint ? { revokeEndpoint: this.host.endpoints.revokeEndpoint } : {})
@@ -117,9 +126,11 @@ export class DriveSyncService {
     const phase: DriveStatus['phase'] = this.connecting ? 'connecting' : e ? (e.phase === 'off' ? 'not-connected' : e.phase) : this.pending ? 'locked' : 'not-connected'
     const error = this.lastError ?? e?.error
     return {
-      configured: this.settings !== undefined,
+      configured: this.client !== undefined,
+      builtInClient: this.settings === undefined && this.host.defaultClient !== undefined,
       phase,
       ...(this.email ? { email: this.email } : {}),
+      ...(this.name ? { name: this.name } : {}),
       ...(e?.lastSyncAt ? { lastSyncAt: e.lastSyncAt } : {}),
       ...(error ? { error } : {}),
       ...(e?.retryAt ? { retryAt: e.retryAt } : {}),
@@ -155,6 +166,7 @@ export class DriveSyncService {
         onCancelable: (c) => { this.cancel = c }
       })
       this.email = tokens.email
+      this.name = tokens.name
       const state = await this.store.state()
       if (state === 'uninitialized') return await this.restore(tokens, oauth)
       this.pending = tokens
@@ -189,8 +201,11 @@ export class DriveSyncService {
     try {
       await restoreVault(drive, this.store)
     } catch (err) {
-      this.lastError = err instanceof NoRemoteVaultError ? 'No vault from this app was found in that Google account. Create a vault here first, then turn on sync.' : friendly(err)
-      return { ok: false, error: this.lastError }
+      if (!(err instanceof NoRemoteVaultError)) {
+        this.lastError = friendly(err)
+        return { ok: false, error: this.lastError }
+      }
+      // A brand-new account: stay signed in, and start syncing the moment a vault has been created here.
     }
     this.pending = tokens // held in memory until the vault is unlocked and can store them
     return { ok: true }
@@ -198,7 +213,7 @@ export class DriveSyncService {
 
   /** The vault is open: adopt any credentials waiting for it, or load the saved ones, and start syncing. */
   private async onUnlocked(): Promise<void> {
-    if (this.engine || !this.settings) return
+    if (this.engine || !this.client) return
     let tokens = this.pending
     if (tokens) {
       await this.store.setLocal(TOKENS, JSON.stringify(tokens))
@@ -210,9 +225,10 @@ export class DriveSyncService {
     if (!tokens) return
 
     this.email = tokens.email
+    this.name = tokens.name
     const oauth = this.oauth()
     const auth = new AuthSession(oauth, tokens, {
-      onChange: (t) => { void this.store.setLocal(TOKENS, JSON.stringify({ ...t, ...(this.email ? { email: this.email } : {}) })).catch(() => undefined) }
+      onChange: (t) => { void this.store.setLocal(TOKENS, JSON.stringify({ ...t, ...(this.email ? { email: this.email } : {}), ...(this.name ? { name: this.name } : {}) })).catch(() => undefined) }
     })
     this.auth = auth
     const drive = new DriveClient({ auth, ...(this.host.endpoints?.baseUrl ? { baseUrl: this.host.endpoints.baseUrl } : {}) })
@@ -248,7 +264,7 @@ export class DriveSyncService {
    */
   async disconnect(deleteRemote: boolean): Promise<Result> {
     const engine = this.engine
-    const tokens = this.auth?.current
+    const tokens = this.auth?.current ?? this.pending
     let remoteProblem: string | undefined
     if (engine) {
       try {
@@ -263,6 +279,7 @@ export class DriveSyncService {
     this.pending = undefined
     this.lastError = undefined
     this.email = undefined
+    this.name = undefined
     try {
       if (tokens) await revoke(this.oauth(), tokens.refreshToken)
       if ((await this.store.state()) === 'unlocked') {

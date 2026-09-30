@@ -107,8 +107,8 @@ export async function startFakeGoogle(opts: FakeGoogleOptions = {}): Promise<Fak
       refresh = 'rt-' + randomBytes(12).toString('hex')
       grants.set(refresh, { email, revoked: false })
     }
-    const idToken = ['none', Buffer.from(JSON.stringify({ email })).toString('base64url'), ''].join('.')
-    return { access_token: token, expires_in: Math.round(ttl / 1000), token_type: 'Bearer', scope: 'openid email https://www.googleapis.com/auth/drive.appdata', id_token: idToken, ...(refresh ? { refresh_token: refresh } : {}) }
+    const idToken = ['none', Buffer.from(JSON.stringify({ email, name: 'Test ' + email.split('@')[0] })).toString('base64url'), ''].join('.')
+    return { access_token: token, expires_in: Math.round(ttl / 1000), token_type: 'Bearer', scope: 'openid email profile https://www.googleapis.com/auth/drive.appdata', id_token: idToken, ...(refresh ? { refresh_token: refresh } : {}) }
   }
 
   const server = createServer((req, res) => {

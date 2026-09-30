@@ -17,7 +17,7 @@
 | **Folder Sync giữa hai pane** (3 chế độ, bảng khác biệt, đổi mũi tên từng mục, bỏ qua theo mẫu, so sánh nội dung, xóa vào thùng rác phục hồi được) | Xong, có test + E2E |
 | **Sửa file từ xa và tự upload** khi lưu, hỏi Ghi đè / Tải bản server / Hủy khi server đã đổi | Xong, có test + E2E |
 | **Terminal SSH** (xterm.js + ssh2): nhiều tab, resize, jump host, known_hosts (TOFU), chia sẻ kết nối, back-pressure | Xong, có test + E2E trên Electron thật |
-| **Sync vault qua Google Drive** `appDataFolder` (OAuth PKCE, mã hóa đầu-cuối, chống sửa file, khôi phục trên máy mới) | Xong, có test + E2E hai máy với Google **giả**; **chưa thử với Google thật** (xem [docs/GOOGLE_DRIVE_SETUP.md](docs/GOOGLE_DRIVE_SETUP.md)) |
+| **Đăng nhập Google → sync vault qua Google Drive** `appDataFolder` (OAuth PKCE, mã hóa đầu-cuối, chống sửa file, khôi phục trên máy mới) | Xong, có test + E2E hai máy với Google **giả**; **chưa thử với Google thật** (xem [docs/GOOGLE_DRIVE_SETUP.md](docs/GOOGLE_DRIVE_SETUP.md)) |
 | Tab trong mỗi pane, kéo file từ/đến Finder, xem trước (Quick Look), đổi tên hàng loạt, gắn thẻ | Chưa |
 
 ## Bắt đầu

@@ -44,6 +44,9 @@ export function App(): React.JSX.Element {
           {status?.state === 'unlocked' && (
             <button className="link" onClick={() => void window.mymius.vault.lock()}>Lock vault</button>
           )}
+          {drive && drive.email && drive.phase !== 'not-connected' && (
+            <button className="link account-line" data-testid="account-line" onClick={() => setSection('settings')} title={drive.email}>{drive.name || drive.email}</button>
+          )}
           {drive && drive.phase !== 'not-connected' && (
             <button className="link sync-line" data-testid="sync-line" onClick={() => setSection('settings')} title={drive.error ?? ''}>
               {drive.phase === 'error' || drive.phase === 'needs-auth' ? '⚠ Drive sync problem'
