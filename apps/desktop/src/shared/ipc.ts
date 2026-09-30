@@ -232,6 +232,30 @@ export interface EditInfo {
   message?: string
 }
 
+// ---- Google Drive sync -----------------------------------------------------------------------------
+
+export type DrivePhase = 'not-connected' | 'connecting' | 'idle' | 'syncing' | 'locked' | 'error' | 'needs-auth'
+
+export interface DriveStatus {
+  /** A Google OAuth client ID has been provided (without one, nothing can connect). */
+  configured: boolean
+  phase: DrivePhase
+  email?: string
+  lastSyncAt?: number
+  error?: string
+  /** When the next automatic retry happens. */
+  retryAt?: number
+  /** Other devices seen in Google Drive. */
+  devices: number
+  /** Files skipped because they failed validation. */
+  ignored: string[]
+}
+
+export interface DriveClientSettings {
+  clientId: string
+  clientSecret?: string
+}
+
 export const Channels = {
   appInfo: 'app:info',
   pickPrivateKey: 'dialog:pick-private-key',
@@ -249,6 +273,7 @@ export const Channels = {
   vaultLock: 'vault:lock',
   vaultChangePassphrase: 'vault:change-passphrase',
   vaultState: 'vault:state',
+  vaultChanged: 'vault:changed',
   hostsList: 'hosts:list',
   hostsSave: 'hosts:save',
   hostsDelete: 'hosts:delete',
@@ -273,7 +298,14 @@ export const Channels = {
   syncRun: 'sync:run',
   editList: 'edit:list',
   editClose: 'edit:close',
-  editEvent: 'edit:event'
+  editEvent: 'edit:event',
+  driveStatus: 'drive:status',
+  driveSetClient: 'drive:set-client',
+  driveConnect: 'drive:connect',
+  driveCancel: 'drive:cancel',
+  driveDisconnect: 'drive:disconnect',
+  driveSyncNow: 'drive:sync-now',
+  driveStatusEvent: 'drive:status-event'
 } as const
 
 export interface TerminalApi {
@@ -296,6 +328,8 @@ export interface VaultApi {
   changePassphrase(newPassphrase: string): Promise<Result>
   /** Fires when the vault locks or unlocks (including auto-lock). */
   onState(listener: (state: VaultStatus['state']) => void): () => void
+  /** Fires when hosts or keys changed, including changes that arrived from another device through sync. */
+  onChanged(listener: () => void): () => void
 }
 
 export interface HostsApi {
@@ -339,6 +373,22 @@ export interface FilesApi {
   }
 }
 
+export interface DriveApi {
+  status(): Promise<DriveStatus>
+  /** Save the OAuth client ID (and secret, which Google issues for desktop clients) used to sign in. */
+  setClient(settings: DriveClientSettings): Promise<Result>
+  /**
+   * Sign in with Google in the system browser. With no vault on this device this restores the vault
+   * from Google Drive (it then needs unlocking); otherwise it turns on syncing.
+   */
+  connect(): Promise<Result>
+  cancelConnect(): Promise<void>
+  /** Sign out. `deleteRemote` also erases the synced data from Google Drive, for every device. */
+  disconnect(deleteRemote: boolean): Promise<Result>
+  syncNow(): Promise<Result>
+  onStatus(listener: (s: DriveStatus) => void): () => void
+}
+
 export interface MymiusApi {
   appInfo(): Promise<AppInfo>
   /** Native file picker for a private key; null when cancelled. */
@@ -348,4 +398,5 @@ export interface MymiusApi {
   hosts: HostsApi
   keys: KeysApi
   files: FilesApi
+  drive: DriveApi
 }

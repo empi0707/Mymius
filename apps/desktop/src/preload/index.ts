@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import { Channels, type EditInfo, type JobState, type MymiusApi, type TerminalDataEvent, type TerminalExitEvent, type VaultStatus } from '../shared/ipc'
+import { Channels, type DriveStatus, type EditInfo, type JobState, type MymiusApi, type TerminalDataEvent, type TerminalExitEvent, type VaultStatus } from '../shared/ipc'
 
 function subscribe<T>(channel: string, listener: (e: T) => void): () => void {
   const handler = (_e: IpcRendererEvent, payload: T): void => listener(payload)
@@ -26,7 +26,8 @@ const api: MymiusApi = {
     unlockWithRecovery: (key, remember) => ipcRenderer.invoke(Channels.vaultUnlockRecovery, key, remember),
     lock: () => ipcRenderer.invoke(Channels.vaultLock),
     changePassphrase: (p) => ipcRenderer.invoke(Channels.vaultChangePassphrase, p),
-    onState: (l) => subscribe<VaultStatus['state']>(Channels.vaultState, l)
+    onState: (l) => subscribe<VaultStatus['state']>(Channels.vaultState, l),
+    onChanged: (l) => subscribe<void>(Channels.vaultChanged, () => l())
   },
   hosts: {
     list: () => ipcRenderer.invoke(Channels.hostsList),
@@ -37,6 +38,15 @@ const api: MymiusApi = {
     list: () => ipcRenderer.invoke(Channels.keysList),
     import: (path, name, passphrase) => ipcRenderer.invoke(Channels.keysImport, path, name, passphrase),
     delete: (id) => ipcRenderer.invoke(Channels.keysDelete, id)
+  },
+  drive: {
+    status: () => ipcRenderer.invoke(Channels.driveStatus),
+    setClient: (settings) => ipcRenderer.invoke(Channels.driveSetClient, settings),
+    connect: () => ipcRenderer.invoke(Channels.driveConnect),
+    cancelConnect: () => ipcRenderer.invoke(Channels.driveCancel),
+    disconnect: (deleteRemote) => ipcRenderer.invoke(Channels.driveDisconnect, deleteRemote),
+    syncNow: () => ipcRenderer.invoke(Channels.driveSyncNow),
+    onStatus: (l) => subscribe<DriveStatus>(Channels.driveStatusEvent, l)
   },
   files: {
     places: () => ipcRenderer.invoke(Channels.filesPlaces),

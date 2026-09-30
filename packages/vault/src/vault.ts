@@ -12,6 +12,8 @@ export interface VaultMeta {
   wrappedByRecovery: string
   /** A known constant sealed with the data key: lets us tell whether a key from elsewhere is the right one. */
   check: string
+  /** Bumped whenever the wrapping changes (new passphrase), so other devices know which copy is newer. */
+  rev: number
 }
 
 const AAD_PASS = 'mymius/vault/key/passphrase'
@@ -40,7 +42,8 @@ export async function createVault(passphrase: string, kdfOverrides?: Partial<Kdf
       kdf,
       wrappedByPassphrase: seal(kek, dataKey, AAD_PASS),
       wrappedByRecovery: seal(recovery, dataKey, AAD_RECOVERY),
-      check: seal(dataKey, CHECK_TEXT, AAD_CHECK)
+      check: seal(dataKey, CHECK_TEXT, AAD_CHECK),
+      rev: 1
     }
   }
 }
@@ -62,7 +65,7 @@ export async function changePassphrase(
 ): Promise<VaultMeta> {
   const kdf = newKdf(kdfOverrides)
   const kek = await deriveKey(newPassphrase, kdf)
-  return { ...meta, kdf, wrappedByPassphrase: seal(kek, dataKey, AAD_PASS) }
+  return { ...meta, kdf, wrappedByPassphrase: seal(kek, dataKey, AAD_PASS), rev: meta.rev + 1 }
 }
 
 /** 64 hex chars in groups of 8: easy to read out or print. */

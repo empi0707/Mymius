@@ -7,6 +7,15 @@ import { open, seal, type KdfTuning } from './crypto'
 import { mergeRecords, type SyncRecord } from './merge'
 import type { SecretStore } from './secret-store'
 import {
+  buildDeviceFile,
+  buildMetaFile,
+  parseDeviceFile,
+  parseMetaFile,
+  recordsFingerprint,
+  type DeviceFile,
+  type MetaFile
+} from './sync-format'
+import {
   changePassphrase as rewrapPassphrase,
   createVault,
   unlockWithPassphrase,
@@ -51,6 +60,8 @@ interface VaultFile {
   deviceId: string
   meta: VaultMeta
   records: SyncRecord[]
+  /** Sealed values that belong to this device only (cloud tokens, sync bookkeeping). Never synced. */
+  local?: Record<string, string>
 }
 
 export interface VaultStoreOptions {
@@ -320,13 +331,110 @@ export class VaultStore extends EventEmitter {
     return changed
   }
 
+  // ---- this device only --------------------------------------------------------------------------
+
+  /** Values kept sealed in the vault file but never sent anywhere: cloud tokens and sync bookkeeping. */
+  getLocal(name: string): string | undefined {
+    const key = this.requireKey()
+    const sealed = this.file!.local?.[name]
+    if (sealed === undefined) return undefined
+    try {
+      return open(key, sealed, `local:${name}`).toString('utf8')
+    } catch {
+      return undefined
+    }
+  }
+
+  async setLocal(name: string, value: string): Promise<void> {
+    const key = this.requireKey()
+    const sealed = seal(key, value, `local:${name}`)
+    await this.mutate(() => { (this.file!.local ??= {})[name] = sealed }, false)
+  }
+
+  async deleteLocal(name: string): Promise<void> {
+    this.requireKey()
+    await this.mutate(() => { if (this.file!.local) delete this.file!.local[name] }, false)
+  }
+
+  // ---- cloud sync files --------------------------------------------------------------------------
+
+  get deviceId(): string {
+    if (!this.file) throw new Error('There is no vault yet')
+    return this.file.deviceId
+  }
+
+  get metaRev(): number {
+    if (!this.file) throw new Error('There is no vault yet')
+    return this.file.meta.rev
+  }
+
+  /** What this device publishes: everything it knows, authenticated with the vault key. */
+  buildDeviceFile(now?: number): DeviceFile {
+    const key = this.requireKey()
+    return buildDeviceFile(key, this.file!.deviceId, this.file!.records, now)
+  }
+
+  /** Changes when the records change, and only then (the timestamp is not part of it). */
+  recordsFingerprint(): string {
+    this.requireKey()
+    return recordsFingerprint(this.file!.records)
+  }
+
+  buildMetaFile(): MetaFile {
+    return buildMetaFile(this.requireKey(), this.file!.meta)
+  }
+
+  /**
+   * Merge another device's published file. A file that is not valid, or does not carry a correct MAC, is
+   * refused (SyncFormatError) and changes nothing. Returns how many records changed.
+   */
+  async applyDeviceFile(text: string): Promise<number> {
+    const key = this.requireKey()
+    const { deviceId, records } = parseDeviceFile(text, key)
+    if (deviceId === this.file!.deviceId) return 0 // our own file coming back
+    let changed = 0
+    await this.mutate(() => {
+      const before = new Map(this.file!.records.map((r) => [r.id, r.hlc]))
+      const merged = mergeRecords(this.file!.records, records)
+      for (const r of merged) {
+        if (before.get(r.id) !== r.hlc) changed++
+        this.clock!.receive(r.hlc)
+      }
+      this.file!.records = merged
+    })
+    return changed
+  }
+
+  /**
+   * Compare the cloud copy of the vault metadata with ours. Verified with the vault key first, so it can
+   * only have been written by a device that holds it.
+   *  - "adopted": the cloud copy is newer (e.g. the passphrase was changed elsewhere) and is now ours.
+   *  - "local-newer": ours is newer; the caller should upload it.
+   *  - "same": nothing to do.
+   */
+  async applyMetaFile(text: string): Promise<'adopted' | 'local-newer' | 'same'> {
+    const key = this.requireKey()
+    // First: is this our vault at all? (Its sealed "check" opens only under our key.) A different vault is
+    // a different problem from a forged file, and the user needs to hear which one it is.
+    const { meta: claimed } = parseMetaFile(text)
+    if (!verifyDataKey(claimed, key)) throw new VaultMismatchError()
+    const { meta } = parseMetaFile(text, key) // ours, so now the MAC: throws SyncFormatError when altered
+    const ours = this.file!.meta
+    if (meta.rev > ours.rev) {
+      await this.mutate(() => { this.file!.meta = meta }, false)
+      return 'adopted'
+    }
+    return meta.rev < ours.rev ? 'local-newer' : 'same'
+  }
+
   // ---- persistence -------------------------------------------------------------------------------
 
-  private mutate(change: () => void): Promise<void> {
+  /** `notify: false` for changes that must not trigger a cloud sync (this device's own bookkeeping). */
+  private mutate(change: () => void, notify = true): Promise<void> {
     const run = this.queue.then(async () => {
       change()
       await this.save()
-      this.emit('changed')
+      if (notify) this.emit('changed')
     })
     this.queue = run.catch(() => undefined)
     return run
@@ -357,6 +465,8 @@ function parseVaultFile(text: string): VaultFile {
       throw new VaultCorruptError('bad record')
     }
   }
+  f.meta.rev = Number.isInteger(f.meta.rev) && (f.meta.rev as number) >= 1 ? f.meta.rev : 1
+  if (f.local !== undefined && (typeof f.local !== 'object' || f.local === null)) throw new VaultCorruptError('bad local area')
   return f as VaultFile
 }
 

@@ -15,3 +15,4 @@ export {
   type VaultStoreOptions,
   type Collection
 } from './store'
+export * from './sync-format'

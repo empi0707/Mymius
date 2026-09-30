@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@mymius/core": "workspace:*",
+    "@mymius/drive-sync": "workspace:*",
     "@mymius/folder-sync": "workspace:*",
     "@mymius/platform": "workspace:*",
     "@mymius/providers": "workspace:*",

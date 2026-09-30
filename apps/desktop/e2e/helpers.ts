@@ -17,7 +17,15 @@ export async function launch(profileDir: string, env: Record<string, string> = {
       __nextResponse?: number
       __opened: string[]
       __trashed: string[]
+      __external: string[]
     }
+    g.__external = []
+    // The system browser: record the URL, then do what a signed-in user's browser would (follow the redirect
+    // back to the app's loopback listener).
+    shell.openExternal = (async (url: string) => {
+      g.__external.push(url)
+      void fetch(url, { redirect: 'follow' }).catch(() => undefined)
+    }) as never
     g.__dialogs = []
     g.__opened = []
     g.__trashed = []
@@ -78,7 +86,7 @@ export async function run(page: Page, key: string, cmd: string): Promise<void> {
   await page.keyboard.press('Enter')
 }
 
-export const goTo = (page: Page, section: 'Hosts' | 'Terminals' | 'Files' | 'Folder Sync') => page.click(`nav >> text=${section}`)
+export const goTo = (page: Page, section: 'Hosts' | 'Terminals' | 'Files' | 'Settings') => page.click(`nav >> text=${section}`)
 
 export const setNextDialogAnswer = (app: ElectronApplication, n: number | undefined) =>
   app.evaluate((_e, v) => { (globalThis as unknown as { __nextResponse?: number }).__nextResponse = v }, n)
@@ -111,3 +119,10 @@ export async function addPasswordHost(page: Page, opts: { name: string; port: nu
   await page.click('button[type=submit]:has-text("Save")')
   await page.waitForSelector(`[data-testid="host-${opts.name}"]`)
 }
+
+export const externalUrls = (app: ElectronApplication) =>
+  app.evaluate(() => (globalThis as unknown as { __external: string[] }).__external)
+
+/** Names shown in the host list, in order. */
+export const hostNames = (page: Page) =>
+  page.locator('[data-testid^="host-"]').evaluateAll((els) => els.map((e) => (e.getAttribute('data-testid') ?? '').slice(5)))

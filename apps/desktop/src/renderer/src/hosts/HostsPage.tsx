@@ -19,6 +19,15 @@ export function HostsPage({ onConnect }: { onConnect(host: HostSummary): void })
     if (k.ok) setKeys(k.keys)
   }, [])
   useEffect(() => { void reload() }, [reload])
+  // Sync may add, change or remove hosts while this page is open.
+  useEffect(() => {
+    let timer: number | undefined
+    const off = window.mymius.vault.onChanged(() => {
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => void reload(), 100) // a burst of merged records is one redraw
+    })
+    return () => { off(); window.clearTimeout(timer) }
+  }, [reload])
 
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase()

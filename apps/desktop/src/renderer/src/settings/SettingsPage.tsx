@@ -1,0 +1,39 @@
+import { useState } from 'react'
+import { DriveCard } from '../drive/DriveCard'
+import { VaultGate } from '../vault/VaultGate'
+
+export function SettingsPage(): React.JSX.Element {
+  return (
+    <div className="settings">
+      <h2>Settings</h2>
+      <VaultGate>
+        <DriveCard />
+        <PassphraseCard />
+      </VaultGate>
+    </div>
+  )
+}
+
+function PassphraseCard(): React.JSX.Element {
+  const [pass, setPass] = useState('')
+  const [again, setAgain] = useState('')
+  const [msg, setMsg] = useState<{ text: string; error: boolean } | null>(null)
+  const submit = async (e: React.FormEvent): Promise<void> => {
+    e.preventDefault()
+    if (pass !== again) return setMsg({ text: 'The two passphrases do not match', error: true })
+    const r = await window.mymius.vault.changePassphrase(pass)
+    if (r.ok) { setPass(''); setAgain(''); setMsg({ text: 'Passphrase changed. Your other devices will ask for the new one after they next sync.', error: false }) }
+    else setMsg({ text: r.error, error: true })
+  }
+  return (
+    <section className="card">
+      <h3>Vault passphrase</h3>
+      <form className="inline-form" onSubmit={(e) => void submit(e)}>
+        <label>New passphrase (at least 10 characters)<input name="newPassphrase" type="password" value={pass} onChange={(e) => setPass(e.target.value)} autoComplete="new-password" /></label>
+        <label>Repeat it<input name="newPassphrase2" type="password" value={again} onChange={(e) => setAgain(e.target.value)} autoComplete="new-password" /></label>
+        {msg && <p className={msg.error ? 'error' : 'hint'} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
+        <div className="row"><span className="grow" /><button type="submit" className="primary" disabled={!pass}>Change passphrase</button></div>
+      </form>
+    </section>
+  )
+}

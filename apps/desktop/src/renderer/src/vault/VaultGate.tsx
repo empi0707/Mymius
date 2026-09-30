@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { ClientForm } from '../drive/ClientForm'
+import { useDrive } from '../drive/useDrive'
 import { useVault } from './useVault'
 
 /** Shows the vault screens until it is set up and unlocked, then the app content. */
@@ -18,7 +20,7 @@ export function VaultGate({ children }: { children: React.ReactNode }): React.JS
         </div>
       )
     case 'uninitialized':
-      return <Setup canRemember={status.canRemember} onCreated={(k) => setRecoveryKey(k)} />
+      return <Setup canRemember={status.canRemember} onCreated={(k) => setRecoveryKey(k)} onRestored={() => void refresh()} />
     case 'locked':
       return <Unlock canRemember={status.canRemember} onUnlocked={() => void refresh()} />
     case 'unlocked':
@@ -26,7 +28,7 @@ export function VaultGate({ children }: { children: React.ReactNode }): React.JS
   }
 }
 
-function Setup({ canRemember, onCreated }: { canRemember: boolean; onCreated(recoveryKey: string): void }): React.JSX.Element {
+function Setup({ canRemember, onCreated, onRestored }: { canRemember: boolean; onCreated(recoveryKey: string): void; onRestored(): void }): React.JSX.Element {
   const [pass, setPass] = useState('')
   const [again, setAgain] = useState('')
   const [remember, setRemember] = useState(false)
@@ -45,6 +47,7 @@ function Setup({ canRemember, onCreated }: { canRemember: boolean; onCreated(rec
   }
 
   return (
+    <div className="setup">
     <form className="form" onSubmit={(e) => void submit(e)}>
       <h2>Create your vault</h2>
       <p className="hint">Your hosts, passwords and keys are encrypted with a passphrase that only you know. It is never stored or sent anywhere, so it cannot be reset.</p>
@@ -56,6 +59,38 @@ function Setup({ canRemember, onCreated }: { canRemember: boolean; onCreated(rec
       {error && <p className="error" role="alert">{error}</p>}
       <button type="submit" className="primary" disabled={busy || pass.length === 0}>Create vault</button>
     </form>
+    <RestoreFromDrive onRestored={onRestored} />
+    </div>
+  )
+}
+
+/** For someone who already uses the app elsewhere: pull the vault down from their Google Drive. */
+function RestoreFromDrive({ onRestored }: { onRestored(): void }): React.JSX.Element {
+  const { status, refresh } = useDrive()
+  const [error, setError] = useState('')
+  const [asking, setAsking] = useState(false)
+  const connecting = status?.phase === 'connecting'
+
+  const start = async (): Promise<void> => {
+    setError('')
+    const r = await window.mymius.drive.connect()
+    if (r.ok) onRestored()
+    else setError(r.error)
+    await refresh()
+  }
+
+  return (
+    <div className="form restore" data-testid="restore">
+      <h3>Already use Mymius on another device?</h3>
+      <p className="hint">Sign in with Google to bring your hosts and keys here. You will unlock them with the passphrase you chose on the other device.</p>
+      {status && !status.configured && !asking && <button className="secondary" onClick={() => setAsking(true)}>Set up Google sign-in…</button>}
+      {asking && !status?.configured && <ClientForm submitLabel="Continue" onSaved={() => { setAsking(false); void refresh() }} />}
+      {status?.configured && !connecting && <button className="secondary" onClick={() => void start()}>Restore from Google Drive</button>}
+      {connecting && (
+        <div className="row" role="status"><span>Waiting for you to finish signing in, in your browser…</span><span className="grow" /><button className="secondary" onClick={() => void window.mymius.drive.cancelConnect()}>Cancel</button></div>
+      )}
+      {error && <p className="error" role="alert">{error}</p>}
+    </div>
   )
 }
 
@@ -75,6 +110,7 @@ function RecoveryKey({ value, onDone }: { value: string; onDone(): void }): Reac
 }
 
 function Unlock({ canRemember, onUnlocked }: { canRemember: boolean; onUnlocked(): void }): React.JSX.Element {
+  const { status: drive } = useDrive()
   const [useRecovery, setUseRecovery] = useState(false)
   const [secret, setSecret] = useState('')
   const [remember, setRemember] = useState(false)
@@ -96,6 +132,9 @@ function Unlock({ canRemember, onUnlocked }: { canRemember: boolean; onUnlocked(
   return (
     <form className="form" onSubmit={(e) => void submit(e)}>
       <h2>Unlock your vault</h2>
+      {drive?.email && drive.phase === 'locked' && (
+        <p className="hint" data-testid="restored-hint">Your vault was restored from Google Drive ({drive.email}). Enter the passphrase you chose on your other device.</p>
+      )}
       <label>
         {useRecovery ? 'Recovery key' : 'Passphrase'}
         <input name={useRecovery ? 'recovery' : 'passphrase'} type={useRecovery ? 'text' : 'password'} value={secret} onChange={(e) => setSecret(e.target.value)} autoFocus spellCheck={false} autoComplete="off" />

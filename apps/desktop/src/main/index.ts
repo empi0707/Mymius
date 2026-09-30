@@ -6,6 +6,7 @@ import { defaultSshAgent } from '@mymius/platform'
 import { VaultStore } from '@mymius/vault'
 import { Channels, type AppInfo, type OS } from '../shared/ipc'
 import { ConnectionBroker } from './connections'
+import { DriveSyncService } from './drive-service'
 import { FilesService } from './files'
 import { OsSecretStore } from './secret-store'
 import { TerminalService } from './terminals'
@@ -13,8 +14,11 @@ import { VaultService } from './vault-service'
 
 const isMac = process.platform === 'darwin'
 
+interface DriveEndpoints { authEndpoint?: string; tokenEndpoint?: string; revokeEndpoint?: string; baseUrl?: string }
+
 let terminals: TerminalService
 let fileService: FilesService
+let driveService: DriveSyncService
 let vault: VaultService
 let osKeychain = false
 
@@ -106,6 +110,14 @@ function registerIpc(): void {
   ipcMain.handle(Channels.editList, (e) => fileService.listEdits(e.sender.id))
   ipcMain.handle(Channels.editClose, (e, id: unknown, discard: unknown) => fileService.closeEdit(e.sender.id, id, discard))
 
+  // Google Drive sync.
+  ipcMain.handle(Channels.driveStatus, () => driveService.status())
+  ipcMain.handle(Channels.driveSetClient, (_e, settings: unknown) => driveService.setClient(settings))
+  ipcMain.handle(Channels.driveConnect, () => driveService.connect())
+  ipcMain.handle(Channels.driveCancel, () => driveService.cancelConnect())
+  ipcMain.handle(Channels.driveDisconnect, (_e, deleteRemote: unknown) => driveService.disconnect(deleteRemote === true))
+  ipcMain.handle(Channels.driveSyncNow, () => driveService.syncNow())
+
   ipcMain.handle(Channels.terminalOpen, (e, req: unknown) => terminals.open(e.sender.id, req))
   ipcMain.on(Channels.terminalWrite, (e, id: unknown, data: unknown) => terminals.write(e.sender.id, id, data))
   ipcMain.on(Channels.terminalResize, (e, id: unknown, c: unknown, r: unknown) => terminals.resize(e.sender.id, id, c, r))
@@ -136,7 +148,24 @@ void app.whenReady().then(async () => {
   store.on('state', (state: string) => {
     for (const w of BrowserWindow.getAllWindows()) w.webContents.send(Channels.vaultState, state)
   })
+  // Hosts and keys can change without the user touching them (a sync merged another device's edits).
+  store.on('changed', () => {
+    for (const w of BrowserWindow.getAllWindows()) w.webContents.send(Channels.vaultChanged)
+  })
   await store.tryAutoUnlock().catch(() => false) // a damaged file is reported through vault.status() instead
+
+  // Only the e2e build may talk to a stand-in for Google; a real build ignores this variable entirely.
+  const fake: DriveEndpoints | undefined = import.meta.env.MODE === 'e2e' && process.env.MYMIUS_E2E_GOOGLE ? (JSON.parse(process.env.MYMIUS_E2E_GOOGLE) as DriveEndpoints) : undefined
+  driveService = new DriveSyncService(
+    {
+      settingsFile: join(userData, 'drive-settings.json'),
+      openExternal: (url) => shell.openExternal(url),
+      emitStatus: (status) => { for (const w of BrowserWindow.getAllWindows()) w.webContents.send(Channels.driveStatusEvent, status) },
+      ...(fake ? { allowInsecureHttp: true, endpoints: fake, intervalMs: 500, debounceMs: 100 } : {})
+    },
+    store
+  )
+  await driveService.init()
 
   const broker = new ConnectionBroker(
     {

@@ -258,7 +258,7 @@ export function Pane(p: PaneProps): React.JSX.Element {
                 role="option"
                 aria-selected={selectedSet.has(entry.path)}
                 data-name={entry.name}
-                className={`row ${selectedSet.has(entry.path) ? 'sel' : ''} ${index === cursor && p.active ? 'cur' : ''} ${dropTarget === entry.path ? 'drop' : ''}`}
+                className={`frow ${selectedSet.has(entry.path) ? 'sel' : ''} ${index === cursor && p.active ? 'cur' : ''} ${dropTarget === entry.path ? 'drop' : ''}`}
                 style={{ top: index * ROW_HEIGHT, height: ROW_HEIGHT }}
                 draggable
                 onDragStart={(e) => onDragStart(e, entry, index)}

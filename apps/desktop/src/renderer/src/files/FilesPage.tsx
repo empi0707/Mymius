@@ -66,7 +66,9 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
   useEffect(() => {
     if (vault?.state !== 'unlocked') return setHosts(null)
     if (!visible) return
-    void window.mymius.hosts.list().then((r) => setHosts(r.ok ? r.hosts : null))
+    const load = (): void => void window.mymius.hosts.list().then((r) => setHosts(r.ok ? r.hosts : null))
+    load()
+    return window.mymius.vault.onChanged(load) // and when sync brings in changes while this tab is open
   }, [vault?.state, visible])
 
   // ---- jobs & edits arrive as events ----

@@ -101,8 +101,18 @@ UI (renderer)  ──chỉ thấy bản đã che bí mật──▶  VaultServic
 
 - Khóa dữ liệu ngẫu nhiên 256-bit mã hóa từng bản ghi (AES-256-GCM, AAD = id bản ghi). Khóa này chỉ tồn tại dưới dạng đã bọc bởi passphrase (Argon2id) và bởi recovery key. Đổi passphrase không phải mã hóa lại dữ liệu.
 - Bản ghi: `{ id, hlc, deleted, payload }`. Gộp theo id, bản có HLC mới nhất thắng. Phép gộp giao hoán, kết hợp và lũy đẳng nên các thiết bị hội tụ dù đọc theo thứ tự nào.
-- `VaultStore` đã có sẵn `snapshot()`, `applyRemote()` (từ chối bản ghi của vault khác qua `check`) và `bootstrap()` (thiết bị mới dựng vault từ bản của thiết bị khác, mỗi thiết bị một id đồng hồ). Chưa nối vào mạng.
-- Kế hoạch backend: Google Drive `appDataFolder` (scope `drive.appdata`), mỗi thiết bị ghi một file riêng nên không có xung đột ghi. Chưa được viết.
+- `VaultStore` có `snapshot()`, `applyRemote()`, `bootstrap()`, và cho sync: `buildDeviceFile/applyDeviceFile`, `buildMetaFile/applyMetaFile`, vùng `local` (niêm phong, không bao giờ sync) chứa token Drive và trạng thái sync.
+
+## Sync qua Google Drive (`packages/drive-sync`)
+
+- **Đăng nhập**: OAuth 2.0 loopback (`127.0.0.1`, cổng ngẫu nhiên) + PKCE S256, `access_type=offline`, scope `drive.appdata` (chỉ thấy thư mục ẩn của app, không thấy file Drive khác). Người dùng tự tạo OAuth client (xem `docs/GOOGLE_DRIVE_SETUP.md`); refresh token nằm trong vùng niêm phong của vault, khóa vault thì bỏ khỏi bộ nhớ.
+- **Bố cục trên Drive**: `mymius-vault.json` (meta: khóa dữ liệu đã bọc, `rev` tăng khi đổi passphrase, kèm MAC) và `mymius-device-<id>.json` mỗi thiết bị một file (toàn bộ trạng thái đã gộp, kèm MAC). Mỗi thiết bị chỉ ghi file của mình nên không có xung đột ghi; thiết bị khác đọc, kiểm MAC rồi gộp LWW theo bản ghi.
+- **Chống sửa**: MAC HMAC-SHA256 (khóa dẫn xuất HKDF từ khóa dữ liệu, JSON chuẩn hóa) phủ cả cờ xóa/HLC. File sai MAC bị bỏ qua và báo "bị sửa"; vault khác (khóa không khớp) báo riêng là "khác vault". Giới hạn 20MB mỗi file.
+- **Engine**: một lượt sync tại một thời điểm, debounce sau thay đổi, polling định kỳ (chưa dùng Changes API), backoff mũ khi lỗi mạng, hết dung lượng thử lại mỗi giờ, thu hồi quyền/vault khác/bị sửa thì dừng và hiện trạng thái.
+- **Máy mới**: chọn "Khôi phục từ Google Drive" ở màn hình tạo vault; dựng vault khóa từ meta, nhập passphrase hoặc recovery key để mở.
+- **Ngắt kết nối**: luôn đăng xuất cục bộ; tùy chọn xóa dữ liệu trên Drive (lỗi bước này được báo riêng).
+
+Giới hạn đã biết: máy đã có vault riêng không thể gộp vào vault trên Drive; bản xóa (tombstone) chưa được dọn nên máy offline rất lâu có thể làm sống lại bản ghi đã xóa.
 
 ## Đa nền tảng
 
@@ -118,6 +128,8 @@ UI (renderer)  ──chỉ thấy bản đã che bí mật──▶  VaultServic
 Tên file từ server được làm sạch cho cả ba OS (ký tự cấm của Windows, tên thiết bị `CON`/`NUL`...).
 
 ## Chưa xác minh
+
+**Sync Google Drive chỉ được kiểm thử với Google giả** (`fake-google.ts`: PKCE, state, hết hạn token, hạn ngạch, lỗi chèn). Chưa thử OAuth/Drive thật: hành vi thực tế của consent screen, thông báo lỗi, giới hạn tốc độ có thể khác. Nếu consent screen ở trạng thái "Testing", refresh token hết hạn sau 7 ngày.
 
 SFTP mới được kiểm thử với server `ssh2` chạy trong process (mô phỏng OpenSSH: mtime theo giây, rename không đè, exec). **Chưa thử với OpenSSH thật**; nhánh `posix-rename` chỉ được kiểm bằng cách bơm extension vào phiên. Trình sinh khóa ed25519 của `ssh2` sinh ra khóa không đọc lại được khoảng 1% số lần: tính năng "tạo khóa" sau này phải kiểm tra lại đầu ra.
 
