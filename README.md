@@ -12,7 +12,7 @@
 | Khung Electron (bảo mật: sandbox, contextIsolation, CSP) | Có, build được |
 | Provider Local và **SFTP** (xác thực mật khẩu / khóa / ssh-agent / keyboard-interactive, xác minh host key, hash phía server) | Xong, có test (`packages/providers`) |
 | Provider FTP / S3 / WebDAV | Chưa |
-| Terminal SSH (xterm.js + ssh2) | Chưa |
+| **Terminal SSH** (xterm.js + ssh2): nhiều tab, resize, jump host, known_hosts (TOFU), chia sẻ kết nối, back-pressure | Xong, có test + E2E trên Electron thật |
 | Sync tài khoản qua Google Drive `appDataFolder` | Chưa (vault đã sẵn sàng cho việc này) |
 | UI file manager, danh sách phiên Remote Edit, UI Folder Sync | Chưa (mới có khung) |
 
@@ -25,6 +25,7 @@ pnpm install
 pnpm test          # chạy toàn bộ test
 pnpm typecheck
 pnpm dev           # mở app Electron
+xvfb-run -a pnpm --filter @mymius/desktop e2e   # E2E (Linux headless; trên macOS/Windows bỏ xvfb-run)
 pnpm dist          # đóng gói cho hệ điều hành hiện tại
 ```
 
@@ -34,6 +35,7 @@ pnpm dist          # đóng gói cho hệ điều hành hiện tại
 packages/
   core/         interface FileSystemProvider, ghi nguyên tử, copy, hash, version
   platform/     khác biệt giữa các OS: thư mục app, tên file an toàn, mở file bằng app
+  ssh/          kết nối SSH dùng chung, shell/PTY, known_hosts, jump host, điều phối terminal
   providers/    các FileSystemProvider (hiện có: Local, SFTP)
   folder-sync/  scan -> diff -> plan -> execute
   remote-edit/  phiên sửa file từ xa + phát hiện xung đột

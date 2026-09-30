@@ -1,7 +1,10 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
+import { toOpenSshFingerprint } from '../util'
 import * as fs from 'node:fs'
 import { realpathSync } from 'node:fs'
-import type { AddressInfo } from 'node:net'
+import net, { type AddressInfo } from 'node:net'
+import { once } from 'node:events'
+import type { ServerChannel } from 'ssh2'
 import path from 'node:path'
 import { Server, utils } from 'ssh2'
 
@@ -26,6 +29,25 @@ export interface TestServerOptions {
   authorizedKey?: string
   /** false: reject exec requests, like an SFTP-only account. */
   exec?: boolean
+  /** false: refuse direct-tcpip channels (no jump-host / port-forwarding). */
+  forwarding?: boolean
+  /** Bind this port instead of a random one. */
+  port?: number
+  /** Reuse a host key (to simulate the same server, or a changed one). */
+  hostKey?: { private: string; public: string }
+}
+
+/** What the mini shell saw for one interactive session. */
+export interface ShellState {
+  cols: number
+  rows: number
+  term: string
+  env: Record<string, string>
+  /** Everything the client typed, as text. */
+  received: string
+  /** Bytes produced so far by the `big` command. */
+  bigSent: number
+  closed: boolean
 }
 
 export interface TestServer {
@@ -36,6 +58,13 @@ export interface TestServer {
   commands: string[]
   /** Names of SFTP extended requests received. */
   extended: string[]
+  /** Interactive sessions, oldest first. */
+  shells: ShellState[]
+  /** direct-tcpip requests received. */
+  forwards: { host: string; port: number }[]
+  hostKey: { private: string; public: string }
+  /** Currently open SSH connections. */
+  connectionCount(): number
   close(): Promise<void>
 }
 
@@ -48,19 +77,21 @@ type Handle =
  * that matter for the provider: whole-second mtimes, "." and ".." in listings, and a rename that
  * refuses to replace an existing target.
  */
-export async function startSftpServer(root: string, opts: TestServerOptions = {}): Promise<TestServer> {
+export async function startSshTestServer(root: string, opts: TestServerOptions = {}): Promise<TestServer> {
   const user = opts.user ?? 'tester'
   const password = opts.password ?? 'secret'
   const realRoot = realpathSync(root)
-  const hostKey = generateEd25519()
+  const hostKey = opts.hostKey ?? generateEd25519()
   const parsedHost = utils.parseKey(hostKey.private)
   if (parsedHost instanceof Error) throw parsedHost
-  const fingerprint = 'SHA256:' + createHash('sha256').update(parsedHost.getPublicSSH()).digest('base64').replace(/=+$/, '')
+  const fingerprint = toOpenSshFingerprint(createHash('sha256').update(parsedHost.getPublicSSH()).digest('hex'))
   const allowedKey = opts.authorizedKey ? utils.parseKey(opts.authorizedKey) : undefined
 
   const clients = new Set<{ end(): void }>()
   const commands: string[] = []
   const extended: string[] = []
+  const shells: ShellState[] = []
+  const forwards: { host: string; port: number }[] = []
 
   const real = (p: string): string => path.join(realRoot, ...path.posix.normalize('/' + p).split('/').filter(Boolean))
   const attrsOf = (st: fs.Stats) => ({
@@ -98,9 +129,42 @@ export async function startSftpServer(root: string, opts: TestServerOptions = {}
       ctx.reject(['password', 'publickey'])
     })
     client.on('error', () => {})
+    client.on('tcpip', (accept, reject, info) => {
+      forwards.push({ host: info.destIP, port: info.destPort })
+      if (opts.forwarding === false) return reject()
+      let accepted = false
+      const target = net.connect(info.destPort, info.destIP, () => {
+        accepted = true
+        const ch = accept()
+        ch.pipe(target)
+        target.pipe(ch)
+        ch.on('close', () => target.destroy())
+      })
+      target.on('error', () => { if (!accepted) reject() })
+    })
     client.on('ready', () => {
       client.on('session', (accept) => {
         const session = accept()
+        const shell: ShellState = { cols: 80, rows: 24, term: '', env: {}, received: '', bigSent: 0, closed: false }
+        session.on('pty', (acceptPty, _rej, info) => {
+          shell.cols = info.cols
+          shell.rows = info.rows
+          shell.term = info.term
+          acceptPty?.()
+        })
+        session.on('window-change', (acceptWc, _rej, info) => {
+          shell.cols = info.cols
+          shell.rows = info.rows
+          acceptWc?.()
+        })
+        session.on('env', (acceptEnv, _rej, info) => {
+          shell.env[info.key] = info.val
+          acceptEnv?.()
+        })
+        session.on('shell', (acceptShell) => {
+          shells.push(shell)
+          runMiniShell(acceptShell(), shell, user)
+        })
 
         session.on('exec', (acceptExec, rejectExec, info) => {
           if (opts.exec === false) return rejectExec()
@@ -251,13 +315,17 @@ export async function startSftpServer(root: string, opts: TestServerOptions = {}
     })
   })
 
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  await new Promise<void>((resolve) => server.listen(opts.port ?? 0, '127.0.0.1', resolve))
   const port = (server.address() as AddressInfo).port
   return {
     port,
     fingerprint,
     commands,
     extended,
+    shells,
+    forwards,
+    hostKey,
+    connectionCount: () => clients.size,
     close: () =>
       new Promise<void>((resolve) => {
         server.close(() => resolve())
@@ -265,3 +333,94 @@ export async function startSftpServer(root: string, opts: TestServerOptions = {}
       })
   }
 }
+
+
+/**
+ * A tiny fake shell with a PTY-like line discipline (echo, backspace, ^C, ^D) and a few commands that
+ * expose what the server side saw: echo, size, term, env NAME, whoami, big N, exit [N].
+ */
+function runMiniShell(stream: ServerChannel, st: ShellState, user: string): void {
+  const prompt = (): void => {
+    stream.write('$ ')
+  }
+  let line = ''
+
+  const big = async (n: number): Promise<void> => {
+    const chunk = Buffer.alloc(64 * 1024, 'x')
+    for (let left = n; left > 0 && !st.closed; ) {
+      const part = chunk.subarray(0, Math.min(left, chunk.length))
+      left -= part.length
+      st.bigSent += part.length
+      if (!stream.write(part)) await once(stream, 'drain')
+    }
+    stream.write('\r\nBIG-DONE\r\n')
+    prompt()
+  }
+
+  const run = (cmd: string): void => {
+    const [word = '', ...rest] = cmd.trim().split(/\s+/)
+    switch (word) {
+      case '':
+        return prompt()
+      case 'echo':
+        stream.write(rest.join(' ') + '\r\n')
+        return prompt()
+      case 'size':
+        stream.write(`${st.cols}x${st.rows}\r\n`)
+        return prompt()
+      case 'term':
+        stream.write(st.term + '\r\n')
+        return prompt()
+      case 'env':
+        stream.write((st.env[rest[0] ?? ''] ?? '') + '\r\n')
+        return prompt()
+      case 'whoami':
+        stream.write(user + '\r\n')
+        return prompt()
+      case 'big':
+        return void big(Number(rest[0] ?? 0))
+      case 'exit':
+        stream.exit(Number(rest[0] ?? 0))
+        return void stream.end()
+      default:
+        stream.write(`${word}: command not found\r\n`)
+        return prompt()
+    }
+  }
+
+  stream.on('close', () => { st.closed = true })
+  stream.write(`welcome ${user}\r\n`)
+  prompt()
+  stream.on('data', (buf: Buffer) => {
+    const text = buf.toString('utf8')
+    st.received += text
+    for (const ch of text) {
+      if (ch === '\r' || ch === '\n') {
+        stream.write('\r\n')
+        const cmd = line
+        line = ''
+        run(cmd)
+      } else if (ch === '\x7f') {
+        if (line) {
+          line = line.slice(0, -1)
+          stream.write('\b \b')
+        }
+      } else if (ch === '\x03') {
+        line = ''
+        stream.write('^C\r\n')
+        prompt()
+      } else if (ch === '\x04') {
+        if (!line) {
+          stream.exit(0)
+          return void stream.end()
+        }
+      } else {
+        line += ch
+        stream.write(ch)
+      }
+    }
+  })
+}
+
+/** Kept for the SFTP tests written before the server grew a shell. */
+export const startSftpServer = startSshTestServer

@@ -25,3 +25,37 @@ main { display: flex; flex-direction: column; min-width: 0; }
 .panes h2 { margin: 0 0 8px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .empty { color: var(--muted); padding: 12px; }
 .warn { margin: 0; padding: 8px 12px; background: #fff3cd; color: #664d03; }
+
+/* --- terminals --- */
+main { min-height: 0; }
+.section { flex: 1; min-height: 0; display: flex; }
+.section[hidden] { display: none; }
+.terminals { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.tabbar { display: flex; align-items: stretch; gap: 1px; border-bottom: 1px solid var(--line); background: var(--bg-side); overflow-x: auto; flex: none; }
+.tab { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 0; background: none; color: var(--muted); font: inherit; cursor: pointer; white-space: nowrap; border-bottom: 2px solid transparent; }
+.tab.active { color: var(--fg); background: var(--bg); border-bottom-color: var(--accent); }
+.tab .x { border: 0; background: none; color: inherit; font-size: 15px; line-height: 1; cursor: pointer; padding: 0 2px; border-radius: 4px; }
+.tab .x:hover { background: color-mix(in srgb, var(--fg) 14%, transparent); }
+.tab.plus { font-size: 16px; padding: 4px 12px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: #888; }
+.dot.open { background: #30c060; } .dot.connecting { background: #e0a030; } .dot.error { background: #e0473f; } .dot.closed { background: #888; }
+.stage { position: relative; flex: 1; min-height: 0; display: flex; }
+.pane { position: relative; flex: 1; min-width: 0; min-height: 0; display: flex; }
+.pane[hidden] { display: none; }
+.term-host { flex: 1; min-width: 0; min-height: 0; padding: 6px 0 0 8px; background: var(--bg); }
+.overlay { position: absolute; inset: auto 16px 16px auto; max-width: min(560px, calc(100% - 32px)); display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg-side); box-shadow: 0 4px 16px rgba(0,0,0,.25); }
+.overlay p { margin: 0 8px 0 0; color: var(--muted); flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; }
+.connect { margin: 24px auto; width: min(420px, 90%); display: flex; flex-direction: column; gap: 12px; }
+.connect h2 { margin: 0; font-size: 18px; }
+.connect label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 12px; }
+.connect input:not([type=radio]) { padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; }
+.connect input:focus { outline: 2px solid color-mix(in srgb, var(--accent) 50%, transparent); border-color: var(--accent); }
+.connect .row { display: flex; gap: 10px; align-items: flex-end; }
+.connect .grow { flex: 1; } .connect .narrow { width: 80px; }
+.connect fieldset { display: flex; gap: 14px; border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px 8px; }
+.connect legend { color: var(--muted); font-size: 12px; padding: 0 4px; }
+.connect .radio { flex-direction: row; align-items: center; gap: 5px; color: var(--fg); font-size: 13px; }
+button.primary, button.secondary { padding: 7px 14px; border-radius: 6px; font: inherit; cursor: pointer; border: 1px solid var(--line); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.primary:disabled { opacity: .5; cursor: default; }
+button.secondary { background: var(--bg); color: var(--fg); }

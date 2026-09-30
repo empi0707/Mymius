@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react'
 import type { AppInfo } from '../../shared/ipc'
+import { TerminalsPage } from './terminal/TerminalsPage'
 
 type Section = 'hosts' | 'files' | 'sync'
 
 const SECTIONS: { id: Section; label: string }[] = [
-  { id: 'hosts', label: 'Hosts' },
+  { id: 'hosts', label: 'Terminals' },
   { id: 'files', label: 'Files' },
   { id: 'sync', label: 'Folder Sync' }
 ]
 
 export function App(): React.JSX.Element {
   const [info, setInfo] = useState<AppInfo | null>(null)
-  const [section, setSection] = useState<Section>('files')
+  const [section, setSection] = useState<Section>('hosts')
 
   useEffect(() => {
     void window.mymius.appInfo().then(setInfo)
@@ -32,7 +33,14 @@ export function App(): React.JSX.Element {
       </aside>
       <main>
         <div className="titlebar-drag" />
-        {section === 'files' ? <DualPanePlaceholder /> : <p className="empty">{SECTIONS.find((s) => s.id === section)?.label} - coming soon</p>}
+        {/* Kept mounted (just hidden) so switching sections never kills a running terminal. */}
+        {info && (
+          <div className="section" hidden={section !== 'hosts'}>
+            <TerminalsPage os={info.os} />
+          </div>
+        )}
+        {section === 'files' && <DualPanePlaceholder />}
+        {section === 'sync' && <p className="empty">Folder Sync - coming soon</p>}
         {info && !info.secureStorage && (
           <p className="warn">OS keychain unavailable: secrets will need your sync passphrase on every launch.</p>
         )}

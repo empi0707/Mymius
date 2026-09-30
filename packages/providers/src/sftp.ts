@@ -1,6 +1,5 @@
-import { createHash } from 'node:crypto'
 import { posix } from 'node:path'
-import type { Duplex, Readable, Writable } from 'node:stream'
+import type { Readable, Writable } from 'node:stream'
 import {
   AlreadyExistsError,
   NotFoundError,
@@ -12,40 +11,13 @@ import {
   type ReadOptions,
   type WriteOptions
 } from '@mymius/core'
-import { Client, type ConnectConfig, type HostFingerprintVerifier, type SFTPWrapper } from 'ssh2'
+import { SshConnection, shellQuote, type SshConnectOptions } from '@mymius/ssh'
+import type { SFTPWrapper } from 'ssh2'
 
 const STATUS_NO_SUCH_FILE = 2
 
-export interface HostKeyInfo {
-  host: string
-  port: number
-  /** As printed by OpenSSH: "SHA256:" + unpadded base64. Compare against known_hosts. */
-  fingerprint: string
-}
-
-export interface SftpConnectOptions {
-  host: string
-  port?: number
-  username: string
-  password?: string
-  privateKey?: string | Buffer
-  passphrase?: string
-  /** ssh-agent socket path, 'pageant', or a Windows named pipe. See defaultSshAgent() in @mymius/platform. */
-  agent?: string
-  /** Answer keyboard-interactive prompts (2FA, one-time codes). Enables that auth method. */
-  keyboardInteractive?: (prompts: { prompt: string; echo: boolean }[]) => Promise<string[]>
-  /**
-   * Required: there is deliberately no default that trusts unknown hosts.
-   * Return true to continue (known host, or the user accepted it), false to abort.
-   */
-  verifyHostKey: (info: HostKeyInfo) => boolean | Promise<boolean>
-  readyTimeoutMs?: number
-  keepaliveIntervalMs?: number
-  /** An already-open stream to tunnel through (ProxyJump / bastion). */
-  sock?: Duplex
-  /** Override negotiation, e.g. to enable legacy algorithms an old server still requires, or to pick a faster cipher. */
-  algorithms?: ConnectConfig['algorithms']
-}
+/** Kept for callers written before the connection logic moved to @mymius/ssh. */
+export type SftpConnectOptions = SshConnectOptions
 
 function kindOf(mode: number): EntryKind {
   switch (mode & 0o170000) {
@@ -70,15 +42,6 @@ function isNoSuchFile(err: unknown): boolean {
   return (err as { code?: unknown } | null)?.code === STATUS_NO_SUCH_FILE
 }
 
-/** Quote for a POSIX shell: everything literal, including spaces, `$`, `;` and quotes. */
-export function shellQuote(s: string): string {
-  return `'${s.replace(/'/g, `'\\''`)}'`
-}
-
-export function toOpenSshFingerprint(hexSha256: string): string {
-  return 'SHA256:' + Buffer.from(hexSha256, 'hex').toString('base64').replace(/=+$/, '')
-}
-
 /** A remote file system over SFTP (SSH). Paths are POSIX. Retains one SSH connection. */
 export class SftpProvider implements FileSystemProvider {
   readonly kind = 'sftp'
@@ -93,70 +56,35 @@ export class SftpProvider implements FileSystemProvider {
   }
   readonly id: string
   private hashCommand: string | null = null
-  private closedFlag = false
-  private closeListeners: ((err?: Error) => void)[] = []
-  private lastError: Error | undefined
 
   private constructor(
-    private readonly client: Client,
+    private readonly conn: SshConnection,
     private readonly sftp: SFTPWrapper,
-    private readonly hostInfo: { host: string; port: number; username: string }
+    private readonly ownsConnection: boolean
   ) {
-    this.id = `sftp:${hostInfo.username}@${hostInfo.host}:${hostInfo.port}`
-    client.on('error', (e: Error) => { this.lastError = e })
-    client.on('close', () => {
-      this.closedFlag = true
-      for (const l of this.closeListeners) l(this.lastError)
-    })
+    this.id = `sftp:${conn.info.username}@${conn.info.host}:${conn.info.port}`
   }
 
-  static async connect(opts: SftpConnectOptions): Promise<SftpProvider> {
-    const port = opts.port ?? 22
-    const client = new Client()
+  /** Open a dedicated connection. Disposing the provider closes it. */
+  static async connect(opts: SshConnectOptions): Promise<SftpProvider> {
+    return SftpProvider.fromConnection(await SshConnection.connect(opts), { ownsConnection: true })
+  }
+
+  /**
+   * Use an SSH connection that already exists (e.g. the one a terminal tab is using), so a file pane
+   * next to a terminal does not log in again. The connection stays open when the provider is disposed
+   * unless `ownsConnection` is set.
+   */
+  static async fromConnection(conn: SshConnection, opts: { ownsConnection?: boolean } = {}): Promise<SftpProvider> {
+    const sftp = await conn.sftp()
+    const provider = new SftpProvider(conn, sftp, opts.ownsConnection ?? false)
     try {
-      await new Promise<void>((resolve, reject) => {
-        client.once('ready', resolve)
-        client.once('error', reject)
-        client.once('close', () => reject(new Error('Connection closed before it was established')))
-        if (opts.keyboardInteractive) {
-          const answer = opts.keyboardInteractive
-          client.on('keyboard-interactive', (_name, _instr, _lang, prompts, finish) => {
-            answer(prompts.map((p) => ({ prompt: p.prompt, echo: p.echo ?? false }))).then(finish, () => finish([]))
-          })
-        }
-        client.connect({
-          host: opts.host,
-          port,
-          username: opts.username,
-          ...(opts.password !== undefined ? { password: opts.password } : {}),
-          ...(opts.privateKey !== undefined ? { privateKey: opts.privateKey } : {}),
-          ...(opts.passphrase !== undefined ? { passphrase: opts.passphrase } : {}),
-          ...(opts.agent !== undefined ? { agent: opts.agent } : {}),
-          ...(opts.sock ? { sock: opts.sock } : {}),
-          ...(opts.algorithms ? { algorithms: opts.algorithms } : {}),
-          tryKeyboard: Boolean(opts.keyboardInteractive),
-          readyTimeout: opts.readyTimeoutMs ?? 20_000,
-          keepaliveInterval: opts.keepaliveIntervalMs ?? 15_000,
-          hostHash: 'sha256',
-          // ssh2 waits for verify() when this returns undefined; @types/ssh2 wrongly says it returns boolean.
-          hostVerifier: ((hex: string, verify: (ok: boolean) => void): void => {
-            Promise.resolve(opts.verifyHostKey({ host: opts.host, port, fingerprint: toOpenSshFingerprint(hex) })).then(
-              verify,
-              () => verify(false)
-            )
-          }) as unknown as HostFingerprintVerifier
-        })
-      })
-      // SFTP is many small request/response pairs; with Nagle + delayed ACKs each one can stall ~40 ms.
-      client.setNoDelay(true)
-      const sftp = await call<SFTPWrapper>((cb) => client.sftp(cb))
-      const provider = new SftpProvider(client, sftp, { host: opts.host, port, username: opts.username })
       await provider.probe()
-      return provider
     } catch (err) {
-      client.end()
+      await provider.dispose()
       throw err
     }
+    return provider
   }
 
   /** Learn what this server supports. Failures just mean "not available". */
@@ -176,33 +104,20 @@ export class SftpProvider implements FileSystemProvider {
   }
 
   get closed(): boolean {
-    return this.closedFlag
+    return this.conn.closed
   }
 
-  /** Called when the connection drops (with the error, if it was one). Reconnecting is the caller's job. */
+  /** Called when the connection ends. Reconnecting is the caller's job. */
   onClose(listener: (err?: Error) => void): void {
-    this.closeListeners.push(listener)
+    this.conn.onClose(listener)
   }
 
   async homeDir(): Promise<string> {
     return this.realpath('.')
   }
 
-  exec(command: string, timeoutMs = 30_000): Promise<{ code: number; stdout: string; stderr: string }> {
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error(`Remote command timed out: ${command}`)), timeoutMs)
-      this.client.exec(command, (err, stream) => {
-        if (err) { clearTimeout(timer); return reject(err) }
-        let stdout = ''
-        let stderr = ''
-        stream.on('data', (d: Buffer) => { stdout += d.toString() })
-        stream.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
-        stream.on('close', (code: number | null) => {
-          clearTimeout(timer)
-          resolve({ code: code ?? -1, stdout, stderr })
-        })
-      })
-    })
+  exec(command: string, timeoutMs?: number): Promise<{ code: number; stdout: string; stderr: string }> {
+    return this.conn.exec(command, timeoutMs)
   }
 
   async list(dir: string): Promise<FileEntry[]> {
@@ -323,11 +238,8 @@ export class SftpProvider implements FileSystemProvider {
   }
 
   async dispose(): Promise<void> {
-    if (this.closedFlag) return
-    await new Promise<void>((resolve) => {
-      this.client.once('close', () => resolve())
-      this.client.end()
-    })
+    this.sftp.end()
+    if (this.ownsConnection) await this.conn.dispose()
   }
 }
 
@@ -336,9 +248,4 @@ function rethrowMissing(path: string): (err: unknown) => never {
     if (isNoSuchFile(err)) throw new NotFoundError(path)
     throw err
   }
-}
-
-/** Used by tests to compute the fingerprint of a known key. */
-export function fingerprintOfPublicKey(publicKeyBlob: Buffer): string {
-  return 'SHA256:' + createHash('sha256').update(publicKeyBlob).digest('base64').replace(/=+$/, '')
 }

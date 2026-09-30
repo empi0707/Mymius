@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { buildPlan, compareFolders, executePlan } from '../../folder-sync/src'
 import { RemoteEditSession, type ConflictChoice } from '../../remote-edit/src'
 import { LocalProvider, SftpProvider } from '../src'
-import { startSftpServer, type TestServer } from './sftp-server'
+import { startSftpServer, type TestServer } from '@mymius/ssh/testing'
 
 let base: string
 let serverRoot: string

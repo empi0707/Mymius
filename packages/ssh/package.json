@@ -1,20 +1,21 @@
 {
-  "name": "@mymius/providers",
+  "name": "@mymius/ssh",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./testing": "./src/testing/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@mymius/core": "workspace:*",
-    "@mymius/ssh": "workspace:*",
     "ssh2": "^1.17.0"
   },
   "devDependencies": {
+    "@types/node": "^26.6.3",
     "@types/ssh2": "^1.15.6"
   }
 }

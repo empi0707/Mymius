@@ -7,7 +7,7 @@ import { pipeline } from 'node:stream/promises'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { AlreadyExistsError, ConflictError, NotFoundError, getVersion, hashFile, writeFileAtomic } from '@mymius/core'
 import { SftpProvider, shellQuote, type SftpConnectOptions } from '../src'
-import { generateEd25519, startSftpServer, type TestServer } from './sftp-server'
+import { generateEd25519, startSftpServer, type TestServer } from '@mymius/ssh/testing'
 
 let root: string
 let server: TestServer
