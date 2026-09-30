@@ -18,6 +18,8 @@
 | **Sửa file từ xa và tự upload** khi lưu, hỏi Ghi đè / Tải bản server / Hủy khi server đã đổi | Xong, có test + E2E |
 | **Terminal SSH** (xterm.js + ssh2): nhiều tab, resize, jump host, known_hosts (TOFU), chia sẻ kết nối, back-pressure | Xong, có test + E2E trên Electron thật |
 | **Đăng nhập Google → sync vault qua Google Drive** `appDataFolder` (OAuth PKCE, mã hóa đầu-cuối, chống sửa file, khôi phục trên máy mới) | Xong, có test + E2E hai máy với Google **giả**; **chưa thử với Google thật** (xem [docs/GOOGLE_DRIVE_SETUP.md](docs/GOOGLE_DRIVE_SETUP.md)) |
+| **Sync / backup bằng file `.json`** tùy chọn (không cần tài khoản: đặt file trong thư mục iCloud Drive, Dropbox, OneDrive, Syncthing, NAS...; sao lưu và khôi phục một lần) | Xong, có test + E2E |
+| **Giao diện tối / sáng / theo hệ thống** | Xong, có E2E |
 | Tab trong mỗi pane, kéo file từ/đến Finder, xem trước (Quick Look), đổi tên hàng loạt, gắn thẻ | Chưa |
 
 ## Bắt đầu

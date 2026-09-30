@@ -1,12 +1,13 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, safeStorage, shell } from 'electron'
 import { homedir } from 'node:os'
 import { defaultSshAgent } from '@mymius/platform'
 import { VaultStore } from '@mymius/vault'
 import { Channels, type AppInfo, type OS } from '../shared/ipc'
 import { ConnectionBroker } from './connections'
 import { DriveSyncService } from './drive-service'
+import { FileSyncService } from './file-sync-service'
 import { FilesService } from './files'
 import { OsSecretStore } from './secret-store'
 import { TerminalService } from './terminals'
@@ -19,6 +20,7 @@ interface DriveEndpoints { authEndpoint?: string; tokenEndpoint?: string; revoke
 let terminals: TerminalService
 let fileService: FilesService
 let driveService: DriveSyncService
+let fileSyncService: FileSyncService
 let vault: VaultService
 let osKeychain = false
 
@@ -62,6 +64,9 @@ function createWindow(): BrowserWindow {
 }
 
 function registerIpc(): void {
+  ipcMain.handle(Channels.setTheme, (_e, theme: unknown) => {
+    if (theme === 'system' || theme === 'light' || theme === 'dark') nativeTheme.themeSource = theme
+  })
   ipcMain.handle(Channels.appInfo, (): AppInfo => ({
     name: app.getName(),
     version: app.getVersion(),
@@ -118,6 +123,14 @@ function registerIpc(): void {
   ipcMain.handle(Channels.driveDisconnect, (_e, deleteRemote: unknown) => driveService.disconnect(deleteRemote === true))
   ipcMain.handle(Channels.driveSyncNow, () => driveService.syncNow())
 
+  // JSON file sync, backup and restore.
+  ipcMain.handle(Channels.fileSyncStatus, () => fileSyncService.status())
+  ipcMain.handle(Channels.fileSyncExport, () => fileSyncService.exportBackup())
+  ipcMain.handle(Channels.fileSyncImport, () => fileSyncService.importBackup())
+  ipcMain.handle(Channels.fileSyncLink, (_e, mode: unknown) => (mode === 'create' || mode === 'existing' ? fileSyncService.link(mode) : { ok: false, error: 'Invalid request' }))
+  ipcMain.handle(Channels.fileSyncUnlink, () => fileSyncService.unlink())
+  ipcMain.handle(Channels.fileSyncNow, () => fileSyncService.syncNow())
+
   ipcMain.handle(Channels.terminalOpen, (e, req: unknown) => terminals.open(e.sender.id, req))
   ipcMain.on(Channels.terminalWrite, (e, id: unknown, data: unknown) => terminals.write(e.sender.id, id, data))
   ipcMain.on(Channels.terminalResize, (e, id: unknown, c: unknown, r: unknown) => terminals.resize(e.sender.id, id, c, r))
@@ -167,6 +180,28 @@ void app.whenReady().then(async () => {
     store
   )
   await driveService.init()
+
+  // The e2e build cannot click a native dialog, so it may name the path in advance; a real build ignores this.
+  const e2ePath: string | undefined = import.meta.env.MODE === 'e2e' ? process.env.MYMIUS_E2E_FILE_PICK : undefined
+  fileSyncService = new FileSyncService(
+    {
+      pick: async (kind, suggestedName) => {
+        if (e2ePath) return e2ePath
+        const win = BrowserWindow.getFocusedWindow() ?? undefined
+        const filters = [{ name: 'Mymius sync file (JSON)', extensions: ['json'] }]
+        if (kind === 'save') {
+          const r = await (win ? dialog.showSaveDialog(win, { defaultPath: suggestedName, filters }) : dialog.showSaveDialog({ defaultPath: suggestedName, filters }))
+          return r.canceled ? undefined : r.filePath
+        }
+        const r = await (win ? dialog.showOpenDialog(win, { properties: ['openFile'], filters }) : dialog.showOpenDialog({ properties: ['openFile'], filters }))
+        return r.canceled ? undefined : r.filePaths[0]
+      },
+      emitStatus: (status) => { for (const w of BrowserWindow.getAllWindows()) w.webContents.send(Channels.fileSyncStatusEvent, status) },
+      ...(e2ePath ? { intervalMs: 300, debounceMs: 100 } : {})
+    },
+    store
+  )
+  await fileSyncService.init()
 
   const broker = new ConnectionBroker(
     {

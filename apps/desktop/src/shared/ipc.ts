@@ -255,6 +255,16 @@ export interface DriveStatus {
   ignored: string[]
 }
 
+export interface FileSyncStatus {
+  phase: 'off' | 'idle' | 'syncing' | 'locked' | 'error'
+  /** The JSON file being kept in step with. */
+  path?: string
+  lastSyncAt?: number
+  error?: string
+  /** Other devices' copies found in the file. */
+  devices: number
+}
+
 export interface DriveClientSettings {
   clientId: string
   clientSecret?: string
@@ -262,6 +272,7 @@ export interface DriveClientSettings {
 
 export const Channels = {
   appInfo: 'app:info',
+  setTheme: 'app:set-theme',
   pickPrivateKey: 'dialog:pick-private-key',
   terminalOpen: 'terminal:open',
   terminalWrite: 'terminal:write',
@@ -309,6 +320,13 @@ export const Channels = {
   driveCancel: 'drive:cancel',
   driveDisconnect: 'drive:disconnect',
   driveSyncNow: 'drive:sync-now',
+  fileSyncStatus: 'filesync:status',
+  fileSyncExport: 'filesync:export',
+  fileSyncImport: 'filesync:import',
+  fileSyncLink: 'filesync:link',
+  fileSyncUnlink: 'filesync:unlink',
+  fileSyncNow: 'filesync:now',
+  fileSyncStatusEvent: 'filesync:status-event',
   driveStatusEvent: 'drive:status-event'
 } as const
 
@@ -394,8 +412,23 @@ export interface DriveApi {
   onStatus(listener: (s: DriveStatus) => void): () => void
 }
 
+export interface FileSyncApi {
+  status(): Promise<FileSyncStatus>
+  /** Save an encrypted copy of the vault as a .json file. `error` is empty when the person cancelled. */
+  exportBackup(): Promise<Result>
+  /** Bring in a .json backup or sync file: sets up a device that has no vault, or merges into an unlocked one. */
+  importBackup(): Promise<Result>
+  /** Keep syncing with a .json file in any folder (iCloud Drive, Dropbox, a NAS...). No account needed. */
+  link(mode: 'create' | 'existing'): Promise<Result>
+  unlink(): Promise<Result>
+  syncNow(): Promise<Result>
+  onStatus(listener: (s: FileSyncStatus) => void): () => void
+}
+
 export interface MymiusApi {
   appInfo(): Promise<AppInfo>
+  /** Makes native dialogs and menus follow the chosen appearance. */
+  setTheme(theme: 'system' | 'light' | 'dark'): Promise<void>
   /** Native file picker for a private key; null when cancelled. */
   pickPrivateKey(): Promise<string | null>
   terminal: TerminalApi
@@ -404,4 +437,5 @@ export interface MymiusApi {
   keys: KeysApi
   files: FilesApi
   drive: DriveApi
+  fileSync: FileSyncApi
 }

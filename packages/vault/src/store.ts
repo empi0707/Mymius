@@ -380,6 +380,16 @@ export class VaultStore extends EventEmitter {
     return recordsFingerprint(this.file!.records)
   }
 
+  /** Whether a device file is well formed and carries a correct MAC for this vault. */
+  isAuthenticDeviceFile(text: string): boolean {
+    try {
+      parseDeviceFile(text, this.requireKey())
+      return true
+    } catch {
+      return false
+    }
+  }
+
   buildMetaFile(): MetaFile {
     return buildMetaFile(this.requireKey(), this.file!.meta)
   }

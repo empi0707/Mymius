@@ -1,13 +1,17 @@
 import { useState } from 'react'
+import { getThemeChoice, setThemeChoice, type ThemeChoice } from '../theme'
 import { DriveCard } from '../drive/DriveCard'
+import { FileSyncCard } from '../drive/FileSyncCard'
 import { VaultGate } from '../vault/VaultGate'
 
 export function SettingsPage(): React.JSX.Element {
   return (
     <div className="settings">
       <h2>Settings</h2>
+      <AppearanceCard />
       <VaultGate>
         <DriveCard />
+        <FileSyncCard />
         <PassphraseCard />
       </VaultGate>
     </div>
@@ -34,6 +38,21 @@ function PassphraseCard(): React.JSX.Element {
         {msg && <p className={msg.error ? 'error' : 'hint'} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
         <div className="row"><span className="grow" /><button type="submit" className="primary" disabled={!pass}>Change passphrase</button></div>
       </form>
+    </section>
+  )
+}
+
+function AppearanceCard(): React.JSX.Element {
+  const [choice, setChoice] = useState<ThemeChoice>(getThemeChoice())
+  const pick = (c: ThemeChoice): void => { setChoice(c); setThemeChoice(c) }
+  return (
+    <section className="card" data-testid="appearance-card">
+      <h3>Appearance</h3>
+      <div className="row" role="radiogroup" aria-label="Theme">
+        {(['system', 'light', 'dark'] as const).map((c) => (
+          <label key={c} className="radio"><input type="radio" name="theme" value={c} checked={choice === c} onChange={() => pick(c)} />{c === 'system' ? 'Match system' : c === 'light' ? 'Light' : 'Dark'}</label>
+        ))}
+      </div>
     </section>
   )
 }

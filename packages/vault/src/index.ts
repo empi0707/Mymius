@@ -16,3 +16,4 @@ export {
   type Collection
 } from './store'
 export * from './sync-format'
+export * from './bundle'

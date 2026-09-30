@@ -109,11 +109,25 @@ UI (renderer)  ──chỉ thấy bản đã che bí mật──▶  VaultServic
 - **Bố cục trên Drive**: `mymius-vault.json` (meta: khóa dữ liệu đã bọc, `rev` tăng khi đổi passphrase, kèm MAC) và `mymius-device-<id>.json` mỗi thiết bị một file (toàn bộ trạng thái đã gộp, kèm MAC). Mỗi thiết bị chỉ ghi file của mình nên không có xung đột ghi; thiết bị khác đọc, kiểm MAC rồi gộp LWW theo bản ghi.
 - **Chống sửa**: MAC HMAC-SHA256 (khóa dẫn xuất HKDF từ khóa dữ liệu, JSON chuẩn hóa) phủ cả cờ xóa/HLC. File sai MAC bị bỏ qua và báo "bị sửa"; vault khác (khóa không khớp) báo riêng là "khác vault". Giới hạn 20MB mỗi file.
 - **Engine**: một lượt sync tại một thời điểm, debounce sau thay đổi, polling định kỳ (chưa dùng Changes API), backoff mũ khi lỗi mạng, hết dung lượng thử lại mỗi giờ, thu hồi quyền/vault khác/bị sửa thì dừng và hiện trạng thái.
+- **Vì sao không cần Client ID của người dùng**: scope `drive.appdata` không thuộc nhóm nhạy cảm nên không phải qua kiểm duyệt của Google; nhà phát hành tạo **một** OAuth Desktop client cho cả ứng dụng và nhúng vào bản build, người dùng chỉ bấm đăng nhập. (Termius dùng máy chủ riêng; ForkLift dùng iCloud/file.) Ai không muốn đăng nhập Google dùng sync bằng file JSON bên dưới.
 - **Đăng nhập tài khoản**: scope thêm `profile` để hiện tên/email (chỉ hiển thị, không dùng để quyết định gì). Đăng nhập có thể làm *trước khi có vault*: nếu tài khoản đã có vault trên Drive thì khôi phục, nếu chưa thì giữ phiên đăng nhập trong bộ nhớ và tự bắt đầu sync ngay khi vault được tạo. Có thể nhúng sẵn OAuth client vào bản build (`MAIN_VITE_GOOGLE_CLIENT_ID` / `MAIN_VITE_GOOGLE_CLIENT_SECRET`) để người dùng không phải tự tạo project Google Cloud; client tự nhập trong app được ưu tiên.
 - **Máy mới**: chọn "Khôi phục từ Google Drive" ở màn hình tạo vault; dựng vault khóa từ meta, nhập passphrase hoặc recovery key để mở.
 - **Ngắt kết nối**: luôn đăng xuất cục bộ; tùy chọn xóa dữ liệu trên Drive (lỗi bước này được báo riêng).
 
 Giới hạn đã biết: máy đã có vault riêng không thể gộp vào vault trên Drive; bản xóa (tombstone) chưa được dọn nên máy offline rất lâu có thể làm sống lại bản ghi đã xóa.
+
+## Sync và backup bằng file JSON (`packages/vault/src/bundle.ts`, `apps/desktop/src/main/file-sync-service.ts`)
+
+Không cần tài khoản hay Client ID. Một file `.json` duy nhất chứa cùng nội dung như các file trên Drive: metadata vault (khóa dữ liệu đã bọc + MAC) và một bản trạng thái đầy đủ cho mỗi thiết bị đã ghi vào (tối đa 10 thiết bị khác, kèm MAC). Toàn ciphertext nên thư mục chứa nó không cần đáng tin.
+
+- **Backup**: "Save backup…" ghi bundle một lần. "Restore from backup…" gộp vào vault đang mở; trên máy chưa có vault thì dựng vault từ metadata, mở khóa bằng passphrase rồi gộp bản ghi (không liên kết, không ghi lại vào file).
+- **Sync liên tục**: "Create sync file…" / "Use existing file…" liên kết một file (đường dẫn lưu trong vùng niêm phong của vault). Mỗi vòng: đọc, kiểm MAC, gộp, rồi chỉ ghi lại khi bản của mình khác bản trong file. Ghi nguyên tử (file tạm + rename, đóng dấu phiên bản bằng mtime/size/inode của file tạm để không nhầm với bản do máy khác ghi chen vào). Chỉ "poll" định kỳ (15 giây) và sau mỗi thay đổi cục bộ.
+- **An toàn**: file sai MAC, thuộc vault khác hoặc không phải bundle thì **không bao giờ bị ghi đè**, app dừng và báo rõ. Bản của thiết bị khác không qua được kiểm MAC bị bỏ qua và không được chép tiếp.
+- **Giới hạn**: hai máy ghi cùng lúc thì một bản có thể bị ghi đè, nhưng máy kia sẽ thấy bản của mình vắng mặt và ghi lại nên hội tụ sau vài vòng. Nếu dịch vụ đồng bộ thư mục tạo bản "conflicted copy" thì app không đọc các bản đó. Chưa thử với iCloud/Dropbox thật, chỉ thử với hai instance dùng chung một thư mục.
+
+## Giao diện
+
+Settings → Appearance: theo hệ thống / sáng / tối. Lựa chọn lưu trong `localStorage` của renderer, áp dụng bằng `data-theme` trên `<html>`, đồng bộ `nativeTheme` (hộp thoại, menu) và bảng màu terminal xterm. Màu trạng thái (badge, cảnh báo, nguy hiểm) đều là biến CSS có bản tối.
 
 ## Đa nền tảng
 

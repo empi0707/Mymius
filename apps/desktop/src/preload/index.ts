@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import { Channels, type DriveStatus, type EditInfo, type JobState, type MymiusApi, type TerminalDataEvent, type TerminalExitEvent, type VaultStatus } from '../shared/ipc'
+import { Channels, type DriveStatus, type EditInfo, type FileSyncStatus, type JobState, type MymiusApi, type TerminalDataEvent, type TerminalExitEvent, type VaultStatus } from '../shared/ipc'
 
 function subscribe<T>(channel: string, listener: (e: T) => void): () => void {
   const handler = (_e: IpcRendererEvent, payload: T): void => listener(payload)
@@ -9,6 +9,7 @@ function subscribe<T>(channel: string, listener: (e: T) => void): () => void {
 
 const api: MymiusApi = {
   appInfo: () => ipcRenderer.invoke(Channels.appInfo),
+  setTheme: (theme) => ipcRenderer.invoke(Channels.setTheme, theme),
   pickPrivateKey: () => ipcRenderer.invoke(Channels.pickPrivateKey),
   terminal: {
     open: (req) => ipcRenderer.invoke(Channels.terminalOpen, req),
@@ -38,6 +39,15 @@ const api: MymiusApi = {
     list: () => ipcRenderer.invoke(Channels.keysList),
     import: (path, name, passphrase) => ipcRenderer.invoke(Channels.keysImport, path, name, passphrase),
     delete: (id) => ipcRenderer.invoke(Channels.keysDelete, id)
+  },
+  fileSync: {
+    status: () => ipcRenderer.invoke(Channels.fileSyncStatus),
+    exportBackup: () => ipcRenderer.invoke(Channels.fileSyncExport),
+    importBackup: () => ipcRenderer.invoke(Channels.fileSyncImport),
+    link: (mode) => ipcRenderer.invoke(Channels.fileSyncLink, mode),
+    unlink: () => ipcRenderer.invoke(Channels.fileSyncUnlink),
+    syncNow: () => ipcRenderer.invoke(Channels.fileSyncNow),
+    onStatus: (l) => subscribe<FileSyncStatus>(Channels.fileSyncStatusEvent, l)
   },
   drive: {
     status: () => ipcRenderer.invoke(Channels.driveStatus),

@@ -5,6 +5,7 @@ import { Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 import { useEffect, useRef } from 'react'
 import type { OS, TerminalTarget } from '../../../shared/ipc'
+import { THEME_EVENT, isDark } from '../theme'
 import { router } from './session'
 
 export type TabStatus = 'connecting' | 'open' | 'closed' | 'error'
@@ -39,7 +40,7 @@ export function TerminalView({ request, os, attempt, active, onStatus, testId }:
       cursorBlink: true,
       scrollback: 10_000,
       allowProposedApi: true,
-      theme: dark.matches ? DARK : LIGHT
+      theme: isDark() ? DARK : LIGHT
     })
     const fit = new FitAddon()
     term.loadAddon(fit)
@@ -60,8 +61,9 @@ export function TerminalView({ request, os, attempt, active, onStatus, testId }:
       ;(w.__mymiusTerminals ??= {})[testId] = term
     }
 
-    const onTheme = (): void => { term.options.theme = dark.matches ? DARK : LIGHT }
+    const onTheme = (): void => { term.options.theme = isDark() ? DARK : LIGHT }
     dark.addEventListener('change', onTheme)
+    window.addEventListener(THEME_EVENT, onTheme)
 
     // Copy/paste that does not fight the terminal: Ctrl+C is SIGINT unless something is selected.
     const mac = os === 'darwin'
@@ -129,6 +131,7 @@ export function TerminalView({ request, os, attempt, active, onStatus, testId }:
       cancelAnimationFrame(raf)
       observer.disconnect()
       dark.removeEventListener('change', onTheme)
+      window.removeEventListener(THEME_EVENT, onTheme)
       input.dispose()
       size.dispose()
       unregister?.()

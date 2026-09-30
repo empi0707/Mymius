@@ -61,6 +61,7 @@ function Setup({ canRemember, onCreated, onRestored }: { canRemember: boolean; o
       <button type="submit" className="primary" disabled={busy || pass.length === 0}>Create vault</button>
     </form>
     <SignInWithGoogle onRestored={onRestored} />
+    <RestoreFromFile onRestored={onRestored} />
     </div>
   )
 }
@@ -101,6 +102,28 @@ function SignInWithGoogle({ onRestored }: { onRestored(): void }): React.JSX.Ele
           )}
         </>
       )}
+      {error && <p className="error" role="alert">{error}</p>}
+    </div>
+  )
+}
+
+/** No account needed: bring a vault in from a .json backup or sync file. */
+function RestoreFromFile({ onRestored }: { onRestored(): void }): React.JSX.Element {
+  const [error, setError] = useState('')
+  const pick = async (mode: 'import' | 'link'): Promise<void> => {
+    setError('')
+    const r = mode === 'import' ? await window.mymius.fileSync.importBackup() : await window.mymius.fileSync.link('existing')
+    if (r.ok) onRestored()
+    else if (r.error) setError(r.error)
+  }
+  return (
+    <div className="form restore" data-testid="restore-file">
+      <h3>Have a backup or sync file?</h3>
+      <p className="hint">Restore from a <code>.json</code> file made by Mymius on another device. You unlock it with the passphrase you chose there.</p>
+      <div className="row wrap">
+        <button className="secondary" onClick={() => void pick('import')}>Restore from backup…</button>
+        <button className="secondary" onClick={() => void pick('link')}>Restore and keep in sync with file…</button>
+      </div>
       {error && <p className="error" role="alert">{error}</p>}
     </div>
   )
