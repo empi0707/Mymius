@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FsEntry, FsListing, FsPlace, FsSessionInfo, HostSummary } from '../../../shared/ipc'
 import { setActivities } from '../activity/activity'
 import { formatDate, formatSize } from './format'
+import { searchEntries } from './search'
 import { useVirtualList } from './useVirtualList'
 
 export const DRAG_TYPE = 'application/x-mymius-files'
@@ -26,6 +27,9 @@ export interface PaneProps {
   sourceLabel: string
   status: 'ready' | 'connecting' | 'error'
   error?: string
+  /** Only entries whose name contains this (any letter case) are shown. */
+  query: string
+  onClearQuery(): void
   onActivate(): void
   onNavigate(path: string): void
   onSelect(paths: string[]): void
@@ -92,11 +96,20 @@ export function Pane(p: PaneProps): React.JSX.Element {
     return () => setActivities(`list:${p.side}`, [])
   }, [loading, remote, p.side])
 
-  const rows = useMemo(() => {
-    if (!listing) return []
-    const list = showHidden ? listing.entries : listing.entries.filter((e) => !e.name.startsWith('.'))
-    return [...list].sort((a, b) => compare(a, b, sort.key, sort.dir))
-  }, [listing, sort, showHidden])
+  const needle = p.query.trim().toLowerCase()
+  const found = useMemo(() => searchEntries(listing?.entries ?? [], p.query, showHidden), [listing, p.query, showHidden])
+  const total = found.total
+  const rows = useMemo(() => [...found.shown].sort((a, b) => compare(a, b, sort.key, sort.dir)), [found, sort])
+
+  // What is filtered out cannot stay selected: Delete or Copy must never act on rows the person cannot see.
+  useEffect(() => {
+    if (p.selected.length === 0) return
+    const visible = new Set(rows.map((r) => r.path))
+    const keep = p.selected.filter((x) => visible.has(x))
+    if (keep.length !== p.selected.length) p.onSelect(keep)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows])
+  useEffect(() => { setCursor(0); anchor.current = 0 }, [needle])
 
   const v = useVirtualList(rows.length, ROW_HEIGHT)
   const selectedSet = useMemo(() => new Set(p.selected), [p.selected])
@@ -234,6 +247,13 @@ export function Pane(p: PaneProps): React.JSX.Element {
         </div>
       )}
 
+      {needle && (
+        <div className="pane-filter" role="status" data-testid={`pane-filter-${p.side}`}>
+          <span>Đang lọc “{p.query.trim()}”: {rows.length}/{total} mục</span>
+          <button className="link" onClick={p.onClearQuery}>Clear</button>
+        </div>
+      )}
+
       <div className="colhead" role="row">
         <button role="columnheader" className="c-name" onClick={() => sortBy('name')}>Name{arrow('name')}</button>
         <button role="columnheader" className="c-size" onClick={() => sortBy('size')}>Size{arrow('size')}</button>
@@ -255,7 +275,7 @@ export function Pane(p: PaneProps): React.JSX.Element {
         {p.status === 'connecting' && <div className="pane-msg">Đang kết nối…</div>}
         {p.status === 'error' && <div className="pane-msg error" role="alert">{p.error} <button className="link" onClick={p.onRetry}>Retry</button></div>}
         {p.status === 'ready' && error && <div className="pane-msg error" role="alert">{error} <button className="link" onClick={p.onRetry}>Retry</button></div>}
-        {p.status === 'ready' && !error && !loading && rows.length === 0 && <div className="pane-msg">Thư mục này trống</div>}
+        {p.status === 'ready' && !error && !loading && rows.length === 0 && <div className="pane-msg">{needle ? `Không có mục nào khớp “${p.query.trim()}”` : 'Thư mục này trống'}</div>}
         <div style={{ height: v.totalHeight, position: 'relative' }}>
           {rows.slice(v.start, v.end).map((entry, k) => {
             const index = v.start + k

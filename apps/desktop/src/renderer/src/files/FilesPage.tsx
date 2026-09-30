@@ -16,6 +16,8 @@ interface PaneState {
   error?: string
   /** Name of the server being connected to, while `status` is 'connecting' for one. */
   connectingTo?: string
+  /** What the search box currently filters this pane's folder by. Each pane keeps its own. */
+  query: string
 }
 
 type Dialog =
@@ -24,7 +26,7 @@ type Dialog =
   | { kind: 'name'; title: string; initial: string; action: string; resolve(name: string | null): void }
   | { kind: 'sync' }
 
-const emptyPane = (): PaneState => ({ session: null, path: null, selected: [], reload: 0, status: 'connecting' })
+const emptyPane = (): PaneState => ({ session: null, path: null, selected: [], reload: 0, status: 'connecting', query: '' })
 
 /** `visible`: this tab is on screen. The page stays mounted while hidden, so it must refresh itself on return. */
 export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element {
@@ -37,6 +39,7 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
   const [edits, setEdits] = useState<EditInfo[]>([])
   const [dialog, setDialog] = useState<Dialog | null>(null)
   const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
   const panesRef = useRef(panes)
   panesRef.current = panes
   const settled = useRef(new Set<string>())
@@ -102,7 +105,8 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
   }), [])
 
   // ---- navigation ----
-  const navigate = (i: 0 | 1, path: string): void => patch(i, { path, selected: [] })
+  // A search belongs to the folder it was typed in, so moving elsewhere starts it afresh.
+  const navigate = (i: 0 | 1, path: string): void => patch(i, { path, selected: [], query: '' })
 
   const choose = async (i: 0 | 1, c: { kind: 'place'; path: string } | { kind: 'host'; hostId: string }): Promise<void> => {
     const old = panesRef.current[i].session
@@ -110,9 +114,9 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
       const local = panesRef.current[0].session?.kind === 'local' ? panesRef.current[0].session : panesRef.current[1].session?.kind === 'local' ? panesRef.current[1].session : null
       const session = local ?? (await window.mymius.files.places().then((r) => (r.ok ? r.session : null)))
       if (!session) return
-      patch(i, { session, path: c.path, selected: [], status: 'ready' })
+      patch(i, { session, path: c.path, selected: [], status: 'ready', query: '' })
     } else {
-      patch(i, { status: 'connecting', selected: [], connectingTo: hosts?.find((h) => h.id === c.hostId)?.name ?? 'máy chủ' })
+      patch(i, { status: 'connecting', selected: [], query: '', connectingTo: hosts?.find((h) => h.id === c.hostId)?.name ?? 'máy chủ' })
       const r = await window.mymius.files.connect(c.hostId)
       if (!r.ok) return patch(i, { status: 'error', error: r.error })
       patch(i, { session: r.session, path: r.session.home, status: 'ready' })
@@ -196,7 +200,10 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
     void transfer(move ? 'move' : 'copy', payload.sessionId, payload.paths, to.id, dir)
   }
 
+  const focusPane = (i: 0 | 1): void => document.querySelector<HTMLElement>(`[data-testid="pane-${i}"]`)?.focus()
+
   const shortcuts = (e: React.KeyboardEvent): void => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f' && !dialog) { e.preventDefault(); searchRef.current?.focus(); searchRef.current?.select(); return }
     if ((e.target as HTMLElement).closest('input, select, textarea') || dialog) return
     const mod = e.metaKey || e.ctrlKey
     if (e.key === 'F5') { e.preventDefault(); copyMove('copy') }
@@ -221,6 +228,25 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
         <button onClick={() => void rename()} title="Rename (F2)">Rename</button>
         <button className="danger-text" onClick={() => void remove()} title="Delete (F8)">Delete</button>
         <span className="grow" />
+        <input
+          ref={searchRef}
+          type="search"
+          className="fm-search"
+          name="pane-search"
+          data-testid="pane-search"
+          data-pane={active}
+          aria-label="Search in the active pane"
+          placeholder={`Search in ${active === 0 ? 'left' : 'right'} pane (${navigator.platform.startsWith('Mac') ? '⌘' : 'Ctrl+'}F)`}
+          title="Filters the files and folders of the current location in the pane you are working in. Each pane keeps its own search."
+          value={panes[active].query}
+          spellCheck={false}
+          autoComplete="off"
+          onChange={(e) => patch(active, { query: e.target.value })}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') { e.preventDefault(); patch(active, { query: '' }); focusPane(active) }
+            else if (e.key === 'Enter' || e.key === 'ArrowDown') { e.preventDefault(); focusPane(active) }
+          }}
+        />
         <button className="primary" disabled={!both} onClick={() => setDialog({ kind: 'sync' })} title="Compare and synchronise the two folders">Sync folders…</button>
       </div>
 
@@ -239,6 +265,8 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
             sourceLabel={label(panes[i].session)}
             status={panes[i].status}
             {...(panes[i].error ? { error: panes[i].error } : {})}
+            query={panes[i].query}
+            onClearQuery={() => patch(i, { query: '' })}
             onActivate={() => setActive(i)}
             onNavigate={(p) => navigate(i, p)}
             onSelect={(paths) => patch(i, { selected: paths })}

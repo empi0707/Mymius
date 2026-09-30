@@ -131,6 +131,10 @@ Không cần tài khoản hay Client ID. Một file `.json` duy nhất chứa c�
 - **An toàn**: file sai MAC, thuộc vault khác hoặc không phải bundle thì **không bao giờ bị ghi đè**, app dừng và báo rõ. Bản của thiết bị khác không qua được kiểm MAC bị bỏ qua và không được chép tiếp.
 - **Giới hạn**: hai máy ghi cùng lúc thì một bản có thể bị ghi đè, nhưng máy kia sẽ thấy bản của mình vắng mặt và ghi lại nên hội tụ sau vài vòng. Nếu dịch vụ đồng bộ thư mục tạo bản "conflicted copy" thì app không đọc các bản đó. Chưa thử với iCloud/Dropbox thật, chỉ thử với hai instance dùng chung một thư mục.
 
+## Tìm kiếm trong pane
+
+Một ô duy nhất ở thanh công cụ, nhưng trạng thái `query` nằm trong `PaneState` của từng pane: ô luôn hiển thị và sửa tìm kiếm của pane đang hoạt động, đổi pane thì ô đổi sang tìm kiếm của pane kia. Lọc theo tên (chứa chuỗi, không phân biệt hoa thường, không phải mẫu/regex) trên thư mục hiện tại, gồm cả thư mục con; tìm bắt đầu bằng dấu chấm thì gồm cả file ẩn (`files/search.ts`). Mục bị lọc mất khỏi vùng chọn để Delete/Copy không bao giờ tác động lên thứ không nhìn thấy. Đi vào thư mục khác hoặc đổi nguồn thì xóa tìm kiếm của pane đó. Chỉ tìm trong thư mục đang mở, không đệ quy.
+
 ## Thanh tiến trình (`apps/desktop/src/renderer/src/activity`)
 
 Một kho trạng thái nhỏ (`activity-core.ts`): mỗi phần của giao diện báo danh sách việc đang chờ theo "scope" (`files`, `terminals`, `list:<pane>`), thanh (`ActivityBar`) hiển thị ở góc trên bên phải. Nguồn: tab terminal đang kết nối, pane đang kết nối hoặc đọc thư mục trên máy chủ, tác vụ sao chép/di chuyển đang chạy (có phần trăm khi biết dung lượng), file sửa từ xa đang `opening`/`uploading`. Chỉ hiện sau 200 ms và ở lại tối thiểu 600 ms để không nhấp nháy; nhiều việc cùng lúc thì hiện việc đầu tiên kèm "(+N)". Không nhận chuột.
