@@ -11,12 +11,14 @@ const api: MymiusApi = {
   appInfo: () => ipcRenderer.invoke(Channels.appInfo),
   setTheme: (theme) => ipcRenderer.invoke(Channels.setTheme, theme),
   pickPrivateKey: () => ipcRenderer.invoke(Channels.pickPrivateKey),
+  onCloseTab: (l) => subscribe<void>(Channels.closeTab, () => l()),
   terminal: {
     open: (req) => ipcRenderer.invoke(Channels.terminalOpen, req),
     write: (id, data) => ipcRenderer.send(Channels.terminalWrite, id, data),
     resize: (id, cols, rows) => ipcRenderer.send(Channels.terminalResize, id, cols, rows),
     ack: (id, bytes) => ipcRenderer.send(Channels.terminalAck, id, bytes),
     close: (id) => ipcRenderer.send(Channels.terminalClose, id),
+    history: (id) => ipcRenderer.invoke(Channels.terminalHistory, id),
     onData: (l) => subscribe<TerminalDataEvent>(Channels.terminalData, l),
     onExit: (l) => subscribe<TerminalExitEvent>(Channels.terminalExit, l)
   },

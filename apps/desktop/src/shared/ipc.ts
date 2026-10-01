@@ -327,11 +327,13 @@ export const Channels = {
   appInfo: 'app:info',
   setTheme: 'app:set-theme',
   pickPrivateKey: 'dialog:pick-private-key',
+  closeTab: 'menu:close-tab',
   terminalOpen: 'terminal:open',
   terminalWrite: 'terminal:write',
   terminalResize: 'terminal:resize',
   terminalAck: 'terminal:ack',
   terminalClose: 'terminal:close',
+  terminalHistory: 'terminal:history',
   terminalData: 'terminal:data',
   terminalExit: 'terminal:exit',
   vaultStatus: 'vault:status',
@@ -394,6 +396,13 @@ export const Channels = {
   driveStatusEvent: 'drive:status-event'
 } as const
 
+export interface HistoryEntry {
+  command: string
+  /** Unix seconds, when the server's shell recorded it. */
+  at?: number
+}
+export type HistoryResult = { ok: true; entries: HistoryEntry[] } | { ok: false; error: string }
+
 export interface TerminalApi {
   open(req: OpenTerminalRequest): Promise<OpenTerminalResult>
   write(id: string, data: string): void
@@ -401,6 +410,8 @@ export interface TerminalApi {
   /** Tell the main process how many output bytes were actually rendered (flow control). */
   ack(id: string, bytes: number): void
   close(id: string): void
+  /** Recent commands from the shell history files on the server this terminal is connected to. */
+  history(id: string): Promise<HistoryResult>
   onData(listener: (e: TerminalDataEvent) => void): () => void
   onExit(listener: (e: TerminalExitEvent) => void): () => void
 }
@@ -519,6 +530,8 @@ export interface MymiusApi {
   setTheme(theme: 'system' | 'light' | 'dark'): Promise<void>
   /** Native file picker for a private key; null when cancelled. */
   pickPrivateKey(): Promise<string | null>
+  /** The Close Tab menu item (Cmd+W, or Ctrl+Shift+W on Windows/Linux) was used. */
+  onCloseTab(listener: () => void): () => void
   terminal: TerminalApi
   vault: VaultApi
   hosts: HostsApi

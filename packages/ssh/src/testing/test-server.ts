@@ -33,6 +33,8 @@ export interface TestServerOptions {
   forwarding?: boolean
   /** Bind this port instead of a random one. */
   port?: number
+  /** Output of the history-reading script (`@@FILE <path>` sections), as a real server's history files would give. */
+  history?: string
   /** Text written to every new shell before the greeting, like sshd's MOTD (sent in the same tick the shell opens). */
   greeting?: string
   /** Reuse a host key (to simulate the same server, or a changed one). */
@@ -185,6 +187,9 @@ export async function startSshTestServer(root: string, opts: TestServerOptions =
               stream.stderr.write(`sha256sum: ${p}: No such file or directory\n`)
               stream.exit(1)
             }
+          } else if (opts.history !== undefined && info.command.includes('@@FILE')) {
+            stream.write(opts.history)
+            stream.exit(0)
           } else {
             stream.stderr.write('unsupported command\n')
             stream.exit(127)

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { OS, TerminalTarget } from '../../../shared/ipc'
 import { setActivities } from '../activity/activity'
 import { ConnectForm } from './ConnectForm'
+import { HistorySidebar } from './HistorySidebar'
 import { TerminalView, type TabStatus } from './TerminalView'
 
 interface Tab {
@@ -11,6 +12,10 @@ interface Tab {
   attempt: number
   status: TabStatus
   message?: string
+  /** Running session, for reading the server's history. */
+  sessionId: string | null
+  /** Commands typed in this tab, newest first. */
+  typed: string[]
 }
 
 /** Ask the page to open a tab. A new `token` each time, so the same host can be opened twice. */
@@ -20,14 +25,23 @@ export interface OpenRequest {
   target: TerminalTarget
 }
 
-export function TerminalsPage({ os, open }: { os: OS; open?: OpenRequest }): React.JSX.Element {
+export function TerminalsPage({ os, open, visible = true }: { os: OS; open?: OpenRequest; visible?: boolean }): React.JSX.Element {
   const [tabs, setTabs] = useState<Tab[]>([])
   const [active, setActive] = useState<string | 'new'>('new')
   const counter = useRef(0)
+  const [historyOpen, setHistoryOpen] = useState<boolean>(() => {
+    try { return localStorage.getItem('mymius.history.open') === '1' } catch { return false }
+  })
+  const toggleHistory = (): void => {
+    setHistoryOpen((v) => {
+      try { localStorage.setItem('mymius.history.open', v ? '0' : '1') } catch { /* remembered only when storage works */ }
+      return !v
+    })
+  }
 
   const add = (target: TerminalTarget, title: string): void => {
     const key = `t${++counter.current}`
-    setTabs((t) => [...t, { key, title, target, attempt: 0, status: 'connecting' }])
+    setTabs((t) => [...t, { key, title, target, attempt: 0, status: 'connecting', sessionId: null, typed: [] }])
     setActive(key)
   }
 
@@ -39,10 +53,27 @@ export function TerminalsPage({ os, open }: { os: OS; open?: OpenRequest }): Rea
     }
   }, [open])
   const patch = (key: string, p: Partial<Tab>): void => setTabs((t) => t.map((x) => (x.key === key ? { ...x, ...p } : x)))
+  const record = (key: string, command: string): void =>
+    setTabs((t) => t.map((x) => (x.key === key ? { ...x, typed: [command, ...x.typed.filter((c) => c !== command)].slice(0, 200) } : x)))
+  /** Put a command from the sidebar on the active terminal's prompt, or run it. Multi-line text is pasted as one block. */
+  const useCommand = (tab: Tab, command: string, run: boolean): void => {
+    if (!tab.sessionId) return
+    const text = command.includes('\n') ? `\x1b[200~${command}\x1b[201~` : command
+    window.mymius.terminal.write(tab.sessionId, run ? text + '\r' : text)
+    document.querySelector<HTMLElement>(`[data-testid="${tab.key}"] textarea`)?.focus()
+  }
   const close = (key: string): void => {
     setTabs((t) => t.filter((x) => x.key !== key))
     setActive((a) => (a === key ? 'new' : a))
   }
+
+  // Cmd+W / Ctrl+Shift+W (the Close Tab menu item): close the tab in front, only while this page is the one showing.
+  const activeRef = useRef(active)
+  activeRef.current = active
+  useEffect(() => {
+    if (!visible) return
+    return window.mymius.onCloseTab(() => { if (activeRef.current !== 'new') close(activeRef.current) })
+  }, [visible])
 
   // Tabs still connecting show up in the corner bar.
   useEffect(() => {
@@ -73,7 +104,9 @@ export function TerminalsPage({ os, open }: { os: OS; open?: OpenRequest }): Rea
           </div>
         ))}
         <button className="tab plus" aria-label="New connection" onClick={() => setActive('new')}>+</button>
+        <button className={`tab hist-toggle ${historyOpen ? 'active' : ''}`} aria-label="Toggle command history" title="Hiện / ẩn sidebar lịch sử lệnh" aria-pressed={historyOpen} onClick={toggleHistory}>Lịch sử lệnh</button>
       </div>
+      <div className="term-body">
       <div className="stage">
         {tabs.map((t) => (
           <div key={t.key} className="pane" hidden={active !== t.key}>
@@ -84,6 +117,8 @@ export function TerminalsPage({ os, open }: { os: OS; open?: OpenRequest }): Rea
               active={active === t.key}
               testId={t.key}
               onStatus={(status, message) => patch(t.key, { status, ...(message ? { message } : {}) })}
+              onSession={(id) => patch(t.key, { sessionId: id })}
+              onCommand={(c) => record(t.key, c)}
             />
             {(t.status === 'closed' || t.status === 'error') && (
               <div className="overlay" role="status">
@@ -95,6 +130,11 @@ export function TerminalsPage({ os, open }: { os: OS; open?: OpenRequest }): Rea
           </div>
         ))}
         {(active === 'new' || tabs.length === 0) && <ConnectForm onConnect={(t) => add(t, `${t.username}@${t.host}`)} />}
+      </div>
+      {historyOpen && (() => {
+        const tab = tabs.find((x) => x.key === active)
+        return <HistorySidebar title={tab?.title ?? ''} sessionId={tab?.sessionId ?? null} typed={tab?.typed ?? []} onUse={(c, run) => tab && useCommand(tab, c, run)} />
+      })()}
       </div>
     </div>
   )

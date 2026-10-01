@@ -17,3 +17,4 @@ export {
   type ResolvedHost,
   type ResolvedAuth
 } from './hostchain'
+export { HISTORY_SCRIPT, parseHistory, type HistoryEntry } from './history'

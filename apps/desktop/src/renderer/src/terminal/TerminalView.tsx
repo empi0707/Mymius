@@ -6,6 +6,7 @@ import '@xterm/xterm/css/xterm.css'
 import { useEffect, useRef } from 'react'
 import type { OS, TerminalTarget } from '../../../shared/ipc'
 import { THEME_EVENT, isDark } from '../theme'
+import { CommandTracker } from './command-tracker'
 import { router } from './session'
 
 export type TabStatus = 'connecting' | 'open' | 'closed' | 'error'
@@ -17,6 +18,10 @@ interface Props {
   attempt: number
   active: boolean
   onStatus(status: TabStatus, message?: string): void
+  /** The id of the running session (null when it ends), so the page can read that server's history. */
+  onSession(id: string | null): void
+  /** A command the person typed and the terminal echoed (never a password). */
+  onCommand(command: string): void
   testId: string
 }
 
@@ -25,7 +30,7 @@ const FONT = "ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono',
 const LIGHT = { background: '#ffffff', foreground: '#1c1c1e', cursor: '#1c1c1e', selectionBackground: '#b4d5fe' }
 const DARK = { background: '#1e1e20', foreground: '#f2f2f4', cursor: '#f2f2f4', selectionBackground: '#3f5f8f' }
 
-export function TerminalView({ request, os, attempt, active, onStatus, testId }: Props): React.JSX.Element {
+export function TerminalView({ request, os, attempt, active, onStatus, onSession, onCommand, testId }: Props): React.JSX.Element {
   const host = useRef<HTMLDivElement>(null)
   const fitRef = useRef<FitAddon | null>(null)
   const termRef = useRef<Terminal | null>(null)
@@ -99,12 +104,14 @@ export function TerminalView({ request, os, attempt, active, onStatus, testId }:
       }
       const id = res.id
       sessionId = id
+      onSession(id)
       unregister = router.register(id, {
         onData: (data) => term.write(data, () => api.ack(id, data.length)),
         onExit: (e) => {
           const why = e.error ? `Mất kết nối: ${e.error}` : 'Phiên đã đóng'
           term.write(`\r\n\x1b[2m[${why}]\x1b[0m\r\n`)
           sessionId = null
+          onSession(null)
           onStatus(e.error ? 'error' : 'closed', why)
         }
       })
@@ -114,7 +121,28 @@ export function TerminalView({ request, os, attempt, active, onStatus, testId }:
       term.focus()
     })
 
-    const input = term.onData((d) => { if (sessionId) api.write(sessionId, d) })
+    // The text on buffer row `y`, joined with the rows the terminal wrapped it over.
+    const rowText = (y: number): string => {
+      const b = term.buffer.active
+      let text = b.getLine(y)?.translateToString(false) ?? ''
+      while (y > 0 && b.getLine(y)?.isWrapped) text = (b.getLine(--y)?.translateToString(false) ?? '') + text
+      return text.trimEnd()
+    }
+    const tracker = new CommandTracker()
+    const input = term.onData((d) => {
+      if (!sessionId) return
+      // Typing inside vim/less/htop is not a command line.
+      if (term.buffer.active.type === 'normal') {
+        const cmd = tracker.feed(d)
+        if (cmd) {
+          // The echo may still be on its way over the network: look at the row again a moment later.
+          const b = term.buffer.active
+          const y = b.baseY + b.cursorY
+          setTimeout(() => { if (!disposed && rowText(y).endsWith(cmd)) onCommand(cmd) }, 300)
+        }
+      }
+      api.write(sessionId, d)
+    })
     const size = term.onResize(({ cols, rows }) => { if (sessionId) api.resize(sessionId, cols, rows) })
 
     let raf = 0
@@ -135,7 +163,7 @@ export function TerminalView({ request, os, attempt, active, onStatus, testId }:
       input.dispose()
       size.dispose()
       unregister?.()
-      if (sessionId) api.close(sessionId)
+      if (sessionId) { api.close(sessionId); onSession(null) }
       if (import.meta.env.MODE === 'e2e') delete (window as unknown as { __mymiusTerminals: Record<string, Terminal> }).__mymiusTerminals[testId]
       term.dispose()
       termRef.current = null

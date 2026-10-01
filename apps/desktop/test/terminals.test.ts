@@ -94,6 +94,18 @@ describe('opening a saved host', () => {
     expect(output.get(id)).toContain(motd)
   })
 
+  it('reads the recent commands of the server this tab is connected to, and only for its owner', async () => {
+    const s = await serve({ history: '@@FILE /home/tester/.bash_history\nls\ndocker ps\nls\n' })
+    const id = okId(await open(await saveHost(s), 1))
+    const r = await terminals.history(1, id)
+    expect(r).toEqual({ ok: true, entries: [{ command: 'ls' }, { command: 'docker ps' }] })
+    expect((await terminals.history(2, id)).ok).toBe(false) // another window cannot read it
+    expect((await terminals.history(1, 'nope')).ok).toBe(false)
+    terminals.close(1, id)
+    await until(() => s.connectionCount() === 0, 'connection closed with the tab')
+    expect((await terminals.history(1, id)).ok).toBe(false)
+  })
+
   it('a wrong stored password is reported, not silently accepted', async () => {
     const s = await serve()
     const good = await saveHost(s)
