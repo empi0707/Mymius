@@ -127,7 +127,7 @@ describe('connecting from a saved host', () => {
     await H.goTo(page, 'Hosts')
     await page.click('button[aria-label="Connect to prod-box"]')
     await H.waitForText(page, tab(2), 'welcome tester')
-    expect(server.connectionCount()).toBe(1)
+    expect(server.connectionCount()).toBe(2) // each terminal tab has its own connection (MOTD)
     expect(await H.dialogs(app)).toHaveLength(1)
   })
 })

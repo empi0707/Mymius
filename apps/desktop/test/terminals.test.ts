@@ -102,13 +102,13 @@ describe('opening a saved host', () => {
     expect(errOf(await open(bad))).toMatch(/authentication/i) // must not ride on the first host's login
   })
 
-  it('two tabs on the same saved host share one connection', async () => {
+  it('each tab gets its own connection, so every tab sees the server MOTD (sshd prints it once per connection)', async () => {
     const s = await serve()
     const h = await saveHost(s)
     okId(await open(h)); okId(await open(h))
     expect(s.shells).toHaveLength(2)
-    expect(s.connectionCount()).toBe(1)
-    expect(asked).toHaveLength(1)
+    expect(s.connectionCount()).toBe(2)
+    expect(asked).toHaveLength(1) // the host key is still only asked about once
   })
 
   it('goes through a saved jump host and asks about both host keys', async () => {

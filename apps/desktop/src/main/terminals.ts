@@ -77,7 +77,7 @@ export class TerminalService {
         dims = { cols: adhoc.cols, rows: adhoc.rows }
         chain = [adhoc.hop]
       }
-      const lease = await this.broker.acquireChain(chain)
+      const lease = await this.broker.acquireChain(chain, { dedicated: true })
       try {
         const session = await lease.connection.shell(dims)
         const id = this.hub.add(session, () => void lease.release())

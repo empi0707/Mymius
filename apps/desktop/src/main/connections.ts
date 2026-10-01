@@ -35,13 +35,30 @@ export class ConnectionBroker {
     this.knownHosts = new KnownHosts(host.knownHostsFile)
   }
 
-  acquireSaved(hostId: string): Promise<Lease> {
-    return resolveChain(hostId, this.saved).then((chain) => this.acquireChain(chain))
+  acquireSaved(hostId: string, opts: { dedicated?: boolean } = {}): Promise<Lease> {
+    return resolveChain(hostId, this.saved).then((chain) => this.acquireChain(chain, opts))
   }
 
-  async acquireChain(chain: ResolvedHost[]): Promise<Lease> {
+  /**
+   * `dedicated` gives a connection of its own, not shared with anything else. Terminals use it: sshd runs
+   * pam_motd (the server status message) once per connection, so a shell opened on a shared connection
+   * would show "Last login" but none of the MOTD.
+   */
+  async acquireChain(chain: ResolvedHost[], opts: { dedicated?: boolean } = {}): Promise<Lease> {
     const key = chainKey(chain)
     const verify = this.knownHosts.verifier((info) => this.host.confirmHostKey(info))
+    if (opts.dedicated) {
+      const connection = await SshConnection.connect(chainToOptions(chain, () => verify))
+      let closed = false
+      return {
+        connection,
+        release: async () => {
+          if (closed) return
+          closed = true
+          await connection.dispose()
+        }
+      }
+    }
     const connection = await this.pool.acquire(key, () => SshConnection.connect(chainToOptions(chain, () => verify)))
     let released = false
     return {

@@ -74,12 +74,12 @@ describe('terminal in the real app', () => {
     await waitForText('t1', new RegExp(`${after.cols}x${after.rows}\\n`))
   })
 
-  it('a second tab to the same host reuses the connection and does not ask again', async () => {
+  it('a second tab to the same host logs in on its own connection (so it shows the MOTD) and does not ask about the key again', async () => {
     await page.click('button[aria-label="New connection"]')
     await connect('127.0.0.1', server.port)
     await waitForText('t2', 'welcome tester')
     expect(server.shells).toHaveLength(2)
-    expect(server.connectionCount()).toBe(1) // one login, two shells
+    expect(server.connectionCount()).toBe(2) // sshd prints the MOTD once per connection, so each tab has its own
     expect(await dialogs()).toHaveLength(1)
     await run('t2', 'echo second tab')
     await waitForText('t2', /second tab\n\$/)
