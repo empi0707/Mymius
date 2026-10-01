@@ -84,6 +84,10 @@ export class SshConnection {
     }
 
     const client = new Client()
+    // ssh2 can emit a second 'error' after the one that fails the connect (a handshake timeout is followed by
+    // "Connection lost before handshake"). With no listener left that is an uncaught exception in the main
+    // process, which Electron answers with a modal error dialog that freezes the window.
+    client.on('error', () => undefined)
     // Whatever made the host check fail is more useful than ssh2's generic "handshake failed".
     let hostKeyProblem: Error | undefined
     try {

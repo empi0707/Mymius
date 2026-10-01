@@ -3,6 +3,7 @@
  * connection between tabs, survive a large output, reconnect, and refuse a changed host key.
  */
 import { mkdtemp, rm } from 'node:fs/promises'
+import { createServer, type Socket } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { ElectronApplication, Page } from 'playwright-core'
@@ -124,6 +125,30 @@ describe('terminal in the real app', () => {
     await page.waitForSelector('.overlay:has-text("authentication")', { timeout: 20_000 })
     await page.click('.overlay button:has-text("Close tab")')
   })
+
+  it('a server that never answers the handshake ends in the Reconnect / Close tab bar, and the app stays usable', async () => {
+    const sockets = new Set<Socket>()
+    const silent = createServer((c) => { sockets.add(c) })
+    await new Promise<void>((r) => silent.listen(0, '127.0.0.1', r))
+    try {
+      await page.click('button[aria-label="New connection"]')
+      await page.fill('input[name=host]', '127.0.0.1')
+      await page.fill('input[name=port]', String((silent.address() as { port: number }).port))
+      await page.fill('input[name=username]', 'tester')
+      await page.fill('input[name=password]', 'secret')
+      await page.click('button[type=submit]')
+      // ssh2 gives up after 20 s with "Timed out while waiting for handshake" and then reports a second error.
+      await page.waitForSelector('.overlay:has-text("handshake")', { timeout: 40_000 })
+      await page.waitForTimeout(1500) // time for the follow-up error that used to raise a modal dialog in the main process
+      await page.click('.overlay button:has-text("Reconnect")', { timeout: 5000 })
+      await page.waitForSelector('.tab.active .dot.connecting')
+      await page.waitForSelector('.overlay:has-text("handshake")', { timeout: 40_000 })
+      await page.click('.overlay button:has-text("Close tab")', { timeout: 5000 })
+    } finally {
+      for (const c of sockets) c.destroy()
+      silent.close()
+    }
+  }, 120_000)
 
   it('refuses a server whose host key changed, without asking the user', async () => {
     const port = server.port
