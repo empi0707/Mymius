@@ -50,7 +50,8 @@ main { min-height: 0; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: #888; }
 .dot.open { background: #30c060; } .dot.connecting { background: #e0a030; } .dot.error { background: #e0473f; } .dot.closed { background: #888; }
 .term-body { flex: 1; min-height: 0; min-width: 0; display: flex; }
-.tab.hist-toggle { margin-left: auto; flex: none; }
+.tab.hist-toggle { margin-left: auto; flex: none; position: sticky; right: 0; background: var(--bg-side); border-left: 1px solid var(--line); } /* stays in view even with many tabs */
+.tab.hist-toggle.active { background: var(--bg); }
 .history { width: 280px; flex: none; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--line); background: var(--bg-side); font-size: 12px; }
 .history-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px 2px; }
 .history-host { padding: 0 10px 6px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

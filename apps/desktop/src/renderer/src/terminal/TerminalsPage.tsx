@@ -104,7 +104,7 @@ export function TerminalsPage({ os, open, visible = true }: { os: OS; open?: Ope
           </div>
         ))}
         <button className="tab plus" aria-label="New connection" onClick={() => setActive('new')}>+</button>
-        <button className={`tab hist-toggle ${historyOpen ? 'active' : ''}`} aria-label="Toggle command history" aria-pressed={historyOpen} onClick={toggleHistory}>Lịch sử lệnh</button>
+        <button className={`tab hist-toggle ${historyOpen ? 'active' : ''}`} aria-label="Toggle command history" title="Hiện / ẩn sidebar lịch sử lệnh" aria-pressed={historyOpen} onClick={toggleHistory}>Lịch sử lệnh</button>
       </div>
       <div className="term-body">
       <div className="stage">
