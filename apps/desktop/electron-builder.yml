@@ -3,6 +3,8 @@ productName: Mymius
 executableName: mymius
 artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 publish: null   # phát hành thủ công: gửi bộ cài cho nhóm, không có auto-update
+# Không có module native bắt buộc: cpu-features/sshcrypto của ssh2 là tùy chọn và ssh2 tự dùng bản JS thuần.
+npmRebuild: false
 directories:
   buildResources: build
   output: release
