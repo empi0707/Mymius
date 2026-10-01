@@ -33,6 +33,8 @@ export interface TestServerOptions {
   forwarding?: boolean
   /** Bind this port instead of a random one. */
   port?: number
+  /** Text written to every new shell before the greeting, like sshd's MOTD (sent in the same tick the shell opens). */
+  greeting?: string
   /** Reuse a host key (to simulate the same server, or a changed one). */
   hostKey?: { private: string; public: string }
 }
@@ -163,7 +165,7 @@ export async function startSshTestServer(root: string, opts: TestServerOptions =
         })
         session.on('shell', (acceptShell) => {
           shells.push(shell)
-          runMiniShell(acceptShell(), shell, user)
+          runMiniShell(acceptShell(), shell, user, opts.greeting)
         })
 
         session.on('exec', (acceptExec, rejectExec, info) => {
@@ -339,7 +341,7 @@ export async function startSshTestServer(root: string, opts: TestServerOptions =
  * A tiny fake shell with a PTY-like line discipline (echo, backspace, ^C, ^D) and a few commands that
  * expose what the server side saw: echo, size, term, env NAME, whoami, big N, exit [N].
  */
-function runMiniShell(stream: ServerChannel, st: ShellState, user: string): void {
+function runMiniShell(stream: ServerChannel, st: ShellState, user: string, greeting = ''): void {
   const prompt = (): void => {
     stream.write('$ ')
   }
@@ -389,6 +391,7 @@ function runMiniShell(stream: ServerChannel, st: ShellState, user: string): void
   }
 
   stream.on('close', () => { st.closed = true })
+  if (greeting) stream.write(greeting)
   stream.write(`welcome ${user}\r\n`)
   prompt()
   stream.on('data', (buf: Buffer) => {

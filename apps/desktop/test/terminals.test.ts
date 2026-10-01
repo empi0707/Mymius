@@ -86,6 +86,14 @@ describe('opening a saved host', () => {
     expect(s.shells[0]).toMatchObject({ cols: 100, rows: 30 })
   })
 
+  it('delivers a long multi-line MOTD sent as the shell opens, in full and in order', async () => {
+    const motd = Array.from({ length: 40 }, (_, i) => `motd line ${i}`).join('\r\n') + '\r\nLast login: now\r\n'
+    const s = await serve({ greeting: motd })
+    const id = okId(await open(await saveHost(s)))
+    await until(() => (output.get(id) ?? '').includes('welcome tester'), 'greeting')
+    expect(output.get(id)).toContain(motd)
+  })
+
   it('a wrong stored password is reported, not silently accepted', async () => {
     const s = await serve()
     const good = await saveHost(s)

@@ -135,4 +135,26 @@ describe('terminal in the real app', () => {
     await page.waitForTimeout(300)
     await page.screenshot({ path: process.env.E2E_SHOT_OK ?? join(tmp, 'ok.png') })
   })
+
+  it('shows the whole MOTD a server prints as the shell opens, not only the last line', async () => {
+    const motd = ['Welcome to Ubuntu 24.04.4 LTS', '', ' System information as of Thu Oct  1 07:28:17 UTC 2026', '',
+      '  System load:  0.15               Processes:             168', '  Memory usage: 37%', '', ...Array.from({ length: 30 }, (_, i) => `news ${i}`),
+      '*** System restart required ***', 'Last login: Thu Oct  1 07:20:35 2026 from 1.2.3.4'].join('\r\n') + '\r\n'
+    const other = await startSshTestServer(tmp, { greeting: motd })
+    try {
+      await page.click('button[aria-label="New connection"]')
+      await connect('127.0.0.1', other.port)
+      const key = await page.waitForFunction(() => {
+        const t = (window as unknown as { __mymiusTerminals?: Record<string, { buffer: { active: { length: number; getLine(i: number): { translateToString(t: boolean): string } | undefined } } }> }).__mymiusTerminals ?? {}
+        return Object.entries(t).find(([, term]) => Array.from({ length: term.buffer.active.length }, (_, i) => term.buffer.active.getLine(i)?.translateToString(true)).join('\n').includes('welcome tester') && Array.from({ length: term.buffer.active.length }, (_, i) => term.buffer.active.getLine(i)?.translateToString(true)).join('\n').includes('Last login'))?.[0] ?? false
+      }, undefined, { timeout: 20_000 }).then((h) => h.jsonValue() as Promise<string>)
+      const text = await screen(key)
+      expect(text).toContain('System information as of')
+      expect(text).toContain('System load:  0.15')
+      expect(text).toContain('news 0')
+      expect(text.indexOf('Welcome to Ubuntu')).toBeLessThan(text.indexOf('Last login'))
+    } finally {
+      await other.close()
+    }
+  })
 })

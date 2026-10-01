@@ -12,22 +12,24 @@ const [username, host] = target.split('@')
 const key = process.env.SSH_KEY
 const conn = new Client()
 conn.on('banner', (m) => console.log('--- BANNER trước khi đăng nhập ---\n' + m))
-conn.on('ready', () => {
-  conn.shell({ term: 'xterm-256color', cols: 120, rows: 40 }, (err, stream) => {
-    if (err) throw err
+// Mở 2 shell liên tiếp trên CÙNG một kết nối (như Mymius khi mở nhiều tab/pane vào một host) rồi so sánh.
+const grab = (label) => new Promise((resolve, reject) => {
+  conn.shell({ term: 'xterm-256color', cols: 120, rows: 40, height: 0, width: 0 }, (err, stream) => {
+    if (err) return reject(err)
     let got = ''
     stream.on('data', (d) => { got += d })
     setTimeout(() => {
-      console.log('--- Dữ liệu shell nhận được trong 3 giây (JSON để thấy mã điều khiển) ---')
-      console.log(JSON.stringify(got))
       stream.end('exit\n')
-      conn.exec('ls -l /run/motd.dynamic /etc/motd /etc/update-motd.d 2>&1; echo ---; grep -iE "PrintMotd|PrintLastLog|UsePAM|Banner" /etc/ssh/sshd_config 2>&1', (e, s) => {
-        let out = ''
-        s.on('data', (d) => { out += d })
-        s.on('close', () => { console.log('--- Cấu hình server ---\n' + out); conn.end() })
-      })
+      console.log(`--- ${label}: ${got.length} byte; có "System information": ${got.includes('System information')}; có "Last login": ${got.includes('Last login')} ---`)
+      console.log(JSON.stringify(got.slice(0, 400)) + (got.length > 400 ? ' …' : ''))
+      resolve()
     }, 3000)
   })
+})
+conn.on('ready', async () => {
+  await grab('Shell #1 (kết nối mới)')
+  await grab('Shell #2 (cùng kết nối)')
+  conn.end()
 })
 conn.on('error', (e) => { console.error('Lỗi:', e.message); process.exit(1) })
 conn.connect({
