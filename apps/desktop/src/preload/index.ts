@@ -11,6 +11,7 @@ const api: MymiusApi = {
   appInfo: () => ipcRenderer.invoke(Channels.appInfo),
   setTheme: (theme) => ipcRenderer.invoke(Channels.setTheme, theme),
   pickPrivateKey: () => ipcRenderer.invoke(Channels.pickPrivateKey),
+  onCloseTab: (l) => subscribe<void>(Channels.closeTab, () => l()),
   terminal: {
     open: (req) => ipcRenderer.invoke(Channels.terminalOpen, req),
     write: (id, data) => ipcRenderer.send(Channels.terminalWrite, id, data),

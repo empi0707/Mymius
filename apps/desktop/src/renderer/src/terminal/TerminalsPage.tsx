@@ -25,7 +25,7 @@ export interface OpenRequest {
   target: TerminalTarget
 }
 
-export function TerminalsPage({ os, open }: { os: OS; open?: OpenRequest }): React.JSX.Element {
+export function TerminalsPage({ os, open, visible = true }: { os: OS; open?: OpenRequest; visible?: boolean }): React.JSX.Element {
   const [tabs, setTabs] = useState<Tab[]>([])
   const [active, setActive] = useState<string | 'new'>('new')
   const counter = useRef(0)
@@ -66,6 +66,14 @@ export function TerminalsPage({ os, open }: { os: OS; open?: OpenRequest }): Rea
     setTabs((t) => t.filter((x) => x.key !== key))
     setActive((a) => (a === key ? 'new' : a))
   }
+
+  // Cmd+W / Ctrl+Shift+W (the Close Tab menu item): close the tab in front, only while this page is the one showing.
+  const activeRef = useRef(active)
+  activeRef.current = active
+  useEffect(() => {
+    if (!visible) return
+    return window.mymius.onCloseTab(() => { if (activeRef.current !== 'new') close(activeRef.current) })
+  }, [visible])
 
   // Tabs still connecting show up in the corner bar.
   useEffect(() => {

@@ -327,6 +327,7 @@ export const Channels = {
   appInfo: 'app:info',
   setTheme: 'app:set-theme',
   pickPrivateKey: 'dialog:pick-private-key',
+  closeTab: 'menu:close-tab',
   terminalOpen: 'terminal:open',
   terminalWrite: 'terminal:write',
   terminalResize: 'terminal:resize',
@@ -529,6 +530,8 @@ export interface MymiusApi {
   setTheme(theme: 'system' | 'light' | 'dark'): Promise<void>
   /** Native file picker for a private key; null when cancelled. */
   pickPrivateKey(): Promise<string | null>
+  /** The Close Tab menu item (Cmd+W, or Ctrl+Shift+W on Windows/Linux) was used. */
+  onCloseTab(listener: () => void): () => void
   terminal: TerminalApi
   vault: VaultApi
   hosts: HostsApi

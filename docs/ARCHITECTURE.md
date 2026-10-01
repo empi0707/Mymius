@@ -192,3 +192,7 @@ Nút **Lịch sử lệnh** ở thanh tab mở một sidebar bên phải, hiển
 Bấm một lệnh: đưa lên dòng lệnh, chưa chạy (nhiều dòng thì dán dạng bracketed paste). Nút ▶ khi rê chuột: chạy ngay (chỉ với lệnh một dòng).
 
 Giới hạn: bash chỉ ghi lịch sử khi một phiên kết thúc (trừ khi server đặt `PROMPT_COMMAND='history -a'`), nên lệnh của một phiên đang chạy ở tab khác chưa có trong file; lệnh gõ ở tab này vẫn hiện nhờ nguồn thứ hai. Lệnh gọi qua Tab-completion hoặc phím mũi tên không được ghi ở nguồn thứ hai (nhưng sẽ có trong file lịch sử sau khi phiên kết thúc). Tài khoản dùng shell khác (vd. nushell) hoặc `HISTFILE` tùy chỉnh thì sidebar có thể trống.
+
+## Menu ứng dụng và phím đóng tab
+
+`apps/desktop/src/main/menu.ts` thay menu mặc định của Electron (menu mặc định gán Cmd/Ctrl+W cho "Close Window", nên bấm để đóng tab terminal lại đóng cả ứng dụng). macOS: **Cmd+W** đóng tab đang chọn, **Shift+Cmd+W** đóng cửa sổ. Windows/Linux: **Ctrl+Shift+W** đóng tab (đi cùng Ctrl+Shift+T mở tab), còn **Ctrl+W** để nguyên cho shell ("xóa từ"). Mục Close Tab chỉ có tác dụng khi đang ở trang Terminals; ở trang khác thì không làm gì. Khi chưa có tab nào, Cmd+W không đóng cửa sổ: dùng Shift+Cmd+W.

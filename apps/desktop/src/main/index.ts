@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { app, BrowserWindow, dialog, ipcMain, nativeTheme, safeStorage, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, safeStorage, shell } from 'electron'
 import { homedir, userInfo } from 'node:os'
 import { defaultSshAgent } from '@mymius/platform'
 import { VaultStore } from '@mymius/vault'
@@ -12,6 +12,7 @@ import { AutoBackupService } from './auto-backup-service'
 import { FileSyncService } from './file-sync-service'
 import { FilesService } from './files'
 import { OsSecretStore } from './secret-store'
+import { menuTemplate } from './menu'
 import { TerminalService } from './terminals'
 import { VaultService } from './vault-service'
 
@@ -172,6 +173,7 @@ function keychainIsStrong(): boolean {
 }
 
 void app.whenReady().then(async () => {
+  Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate(isMac, () => BrowserWindow.getFocusedWindow()?.webContents.send(Channels.closeTab))))
   const userData = app.getPath('userData')
   osKeychain = keychainIsStrong()
   const secrets = osKeychain
