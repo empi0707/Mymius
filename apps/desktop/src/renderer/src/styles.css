@@ -49,6 +49,23 @@ main { min-height: 0; }
 .tab.plus { font-size: 16px; padding: 4px 12px; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: #888; }
 .dot.open { background: #30c060; } .dot.connecting { background: #e0a030; } .dot.error { background: #e0473f; } .dot.closed { background: #888; }
+.term-body { flex: 1; min-height: 0; min-width: 0; display: flex; }
+.tab.hist-toggle { margin-left: auto; flex: none; }
+.history { width: 280px; flex: none; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--line); background: var(--bg-side); font-size: 12px; }
+.history-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px 2px; }
+.history-host { padding: 0 10px 6px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.history-filter { margin: 0 10px 6px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; }
+.history .hint, .history .error { margin: 6px 10px; }
+.history .hint.foot { margin-top: auto; padding-top: 6px; border-top: 1px solid var(--line); color: var(--muted); }
+.history-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 0 1 auto; min-height: 0; }
+.history-item { display: flex; align-items: stretch; }
+.history-item:hover { background: var(--hover); }
+.history-cmd { flex: 1; min-width: 0; text-align: left; padding: 4px 10px; border: 0; background: transparent; color: var(--fg); cursor: pointer; font: inherit; display: flex; gap: 6px; align-items: baseline; }
+.history-cmd code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.history-cmd .badge { color: var(--accent); font-size: 8px; width: 8px; flex: none; }
+.history-run { border: 0; background: transparent; color: var(--muted); cursor: pointer; padding: 0 8px; visibility: hidden; }
+.history-item:hover .history-run, .history-run:focus-visible { visibility: visible; }
+.history-run:hover { color: var(--accent); }
 .stage { position: relative; flex: 1; min-height: 0; display: flex; }
 .pane { position: relative; flex: 1; min-width: 0; min-height: 0; display: flex; }
 .pane[hidden] { display: none; }

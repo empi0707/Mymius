@@ -17,6 +17,7 @@
 | **Folder Sync giữa hai pane** (3 chế độ, bảng khác biệt, đổi mũi tên từng mục, bỏ qua theo mẫu, so sánh nội dung, xóa vào thùng rác phục hồi được) | Xong, có test + E2E |
 | **Sửa file từ xa và tự upload** khi lưu, hỏi Ghi đè / Tải bản server / Hủy khi server đã đổi | Xong, có test + E2E |
 | **Terminal SSH** (xterm.js + ssh2): nhiều tab, resize, jump host, known_hosts (TOFU), mỗi tab một kết nối riêng (để hiện MOTD), back-pressure | Xong, có test + E2E trên Electron thật |
+| **Lịch sử lệnh** (sidebar bên phải tab terminal): lệnh gần đây từ file lịch sử của server (bash/zsh/fish) + lệnh gõ trong tab; bấm để đưa lên dòng lệnh, ▶ để chạy | Xong, có test + E2E trên Electron thật (chỉ thử với server giả) |
 | **Sync vault qua Dropbox (App folder)**: đăng nhập bằng mã dán, không cần domain hay Google duyệt; cùng engine và mã hóa với Drive ([docs/DROPBOX_SETUP.md](docs/DROPBOX_SETUP.md)) | Xong, có test + E2E với Dropbox **giả**; chưa thử Dropbox thật |
 | **Đăng nhập Google → sync vault qua Google Drive** `appDataFolder` (OAuth PKCE, mã hóa đầu-cuối, chống sửa file, khôi phục trên máy mới) | Xong, có test + E2E hai máy với Google **giả**; **chưa thử với Google thật** (xem [docs/GOOGLE_DRIVE_SETUP.md](docs/GOOGLE_DRIVE_SETUP.md)) |
 | **Sync / backup bằng file `.json`** tùy chọn (không cần tài khoản: đặt file trong thư mục iCloud Drive, Dropbox, OneDrive, Syncthing, NAS...; sao lưu và khôi phục một lần) | Xong, có test + E2E |

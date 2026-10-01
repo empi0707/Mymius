@@ -17,6 +17,7 @@ const api: MymiusApi = {
     resize: (id, cols, rows) => ipcRenderer.send(Channels.terminalResize, id, cols, rows),
     ack: (id, bytes) => ipcRenderer.send(Channels.terminalAck, id, bytes),
     close: (id) => ipcRenderer.send(Channels.terminalClose, id),
+    history: (id) => ipcRenderer.invoke(Channels.terminalHistory, id),
     onData: (l) => subscribe<TerminalDataEvent>(Channels.terminalData, l),
     onExit: (l) => subscribe<TerminalExitEvent>(Channels.terminalExit, l)
   },

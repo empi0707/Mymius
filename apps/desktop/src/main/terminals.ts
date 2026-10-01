@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { defaultSshAgent } from '@mymius/platform'
-import { TerminalHub, parseOpenRequest, resolveChain, type HostLookup, type ResolvedHost } from '@mymius/ssh'
-import type { OpenTerminalResult, TerminalDataEvent, TerminalExitEvent } from '../shared/ipc'
+import { HISTORY_SCRIPT, TerminalHub, parseHistory, parseOpenRequest, resolveChain, shellQuote, type HostLookup, type ResolvedHost, type SshConnection } from '@mymius/ssh'
+import type { HistoryResult, OpenTerminalResult, TerminalDataEvent, TerminalExitEvent } from '../shared/ipc'
 import type { ConnectionBroker } from './connections'
 import { expandHome } from './vault-service'
 
@@ -42,6 +42,8 @@ export class TerminalService {
   private readonly hub: TerminalHub
   /** Which window (webContents id) owns each session, so output goes to the right place. */
   private readonly owners = new Map<string, number>()
+  /** The connection each session runs on (its own, see ConnectionBroker), used to read the host's shell history. */
+  private readonly connections = new Map<string, SshConnection>()
 
   constructor(private readonly out: TerminalOutput, private readonly broker: ConnectionBroker, private readonly saved: HostLookup) {
     this.hub = new TerminalHub({
@@ -52,6 +54,7 @@ export class TerminalService {
       exit: (id, info) => {
         const owner = this.owners.get(id)
         this.owners.delete(id)
+        this.connections.delete(id)
         if (owner === undefined) return
         out.sendExit(owner, {
           id,
@@ -82,11 +85,25 @@ export class TerminalService {
         const session = await lease.connection.shell(dims)
         const id = this.hub.add(session, () => void lease.release())
         this.owners.set(id, owner)
+        this.connections.set(id, lease.connection)
         return { ok: true, id }
       } catch (err) {
         await lease.release()
         throw err
       }
+    } catch (err) {
+      return { ok: false, error: (err as Error).message }
+    }
+  }
+
+  /** Recent commands from the history files of the account this terminal is logged in as. Read-only, nothing is stored. */
+  async history(owner: number, id: unknown): Promise<HistoryResult> {
+    const conn = this.owned(owner, id) ? this.connections.get(id) : undefined
+    if (!conn || conn.closed) return { ok: false, error: 'Phiên terminal không còn kết nối' }
+    try {
+      const r = await conn.exec(`sh -c ${shellQuote(HISTORY_SCRIPT)}`, 10_000)
+      if (r.code !== 0 && !r.stdout) return { ok: false, error: r.stderr.trim().slice(0, 200) || 'Không đọc được lịch sử lệnh' }
+      return { ok: true, entries: parseHistory(r.stdout) }
     } catch (err) {
       return { ok: false, error: (err as Error).message }
     }

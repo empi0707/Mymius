@@ -68,7 +68,14 @@ describe('terminal in the real app', () => {
 
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(1000, 640))
     await expect.poll(async () => (await dims('t1')).cols, { timeout: 10_000 }).not.toBe(before.cols)
-    const after = await dims('t1')
+    // The window may settle in more than one step; wait until the size stops changing.
+    let after = await dims('t1')
+    for (let stable = 0; stable < 6; ) {
+      await new Promise((r) => setTimeout(r, 100))
+      const now = await dims('t1')
+      stable = now.cols === after.cols && now.rows === after.rows ? stable + 1 : 0
+      after = now
+    }
     await expect.poll(() => ({ cols: server.shells[0]!.cols, rows: server.shells[0]!.rows }), { timeout: 10_000 }).toEqual(after)
     await run('t1', 'size')
     await waitForText('t1', new RegExp(`${after.cols}x${after.rows}\\n`))

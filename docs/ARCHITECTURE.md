@@ -181,3 +181,14 @@ Tên file từ server được làm sạch cho cả ba OS (ký tự cấm của 
 SFTP mới được kiểm thử với server `ssh2` chạy trong process (mô phỏng OpenSSH: mtime theo giây, rename không đè, exec). **Chưa thử với OpenSSH thật**; nhánh `posix-rename` chỉ được kiểm bằng cách bơm extension vào phiên. Trình sinh khóa ed25519 của `ssh2` sinh ra khóa không đọc lại được khoảng 1% số lần: tính năng "tạo khóa" sau này phải kiểm tra lại đầu ra.
 
 Mọi test đã chạy trên Linux. **Chưa chạy trên macOS và Windows** (CI ma trận 3 OS đã cấu hình để làm việc này). Terminal đã được chạy trong **Electron thật dưới Xvfb** (Linux). Trên macOS/Windows chưa chạy: đặc biệt cần xem lại WebGL renderer, phím tắt copy/paste, và hành vi của hộp thoại native.
+
+## Lịch sử lệnh (sidebar trong tab Terminals)
+
+Nút **Lịch sử lệnh** ở thanh tab mở một sidebar bên phải, hiển thị lệnh gần đây của server mà tab đang chọn kết nối tới. Hai nguồn, gộp và bỏ trùng, mới nhất ở trên:
+
+- **File lịch sử trên server**: `TerminalService.history` chạy `sh -c` (một lệnh chỉ-đọc, `HISTORY_SCRIPT` trong `packages/ssh/src/history.ts`) qua kết nối riêng của tab, đọc 1500 dòng cuối của `~/.bash_history`, `~/.zsh_history` và fish history. `parseHistory` hiểu bash (kể cả dòng `#timestamp`), zsh extended history (nhiều dòng) và fish. Kết quả chỉ nằm trong RAM, không lưu vào vault hay đồng bộ.
+- **Lệnh gõ trong tab** (chấm ●): `CommandTracker` theo dõi phím gõ. Chỉ ghi nhận dòng gõ "sạch" (ký tự thường + Backspace, không Tab/mũi tên/paste nhiều dòng, không ở vim/less) và sau 300 ms phải thấy chính dòng đó hiện trên terminal. Mật khẩu gõ ở prompt không được server echo lại nên không bao giờ bị ghi.
+
+Bấm một lệnh: đưa lên dòng lệnh, chưa chạy (nhiều dòng thì dán dạng bracketed paste). Nút ▶ khi rê chuột: chạy ngay (chỉ với lệnh một dòng).
+
+Giới hạn: bash chỉ ghi lịch sử khi một phiên kết thúc (trừ khi server đặt `PROMPT_COMMAND='history -a'`), nên lệnh của một phiên đang chạy ở tab khác chưa có trong file; lệnh gõ ở tab này vẫn hiện nhờ nguồn thứ hai. Lệnh gọi qua Tab-completion hoặc phím mũi tên không được ghi ở nguồn thứ hai (nhưng sẽ có trong file lịch sử sau khi phiên kết thúc). Tài khoản dùng shell khác (vd. nushell) hoặc `HISTFILE` tùy chỉnh thì sidebar có thể trống.

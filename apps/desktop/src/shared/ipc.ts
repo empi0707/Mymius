@@ -332,6 +332,7 @@ export const Channels = {
   terminalResize: 'terminal:resize',
   terminalAck: 'terminal:ack',
   terminalClose: 'terminal:close',
+  terminalHistory: 'terminal:history',
   terminalData: 'terminal:data',
   terminalExit: 'terminal:exit',
   vaultStatus: 'vault:status',
@@ -394,6 +395,13 @@ export const Channels = {
   driveStatusEvent: 'drive:status-event'
 } as const
 
+export interface HistoryEntry {
+  command: string
+  /** Unix seconds, when the server's shell recorded it. */
+  at?: number
+}
+export type HistoryResult = { ok: true; entries: HistoryEntry[] } | { ok: false; error: string }
+
 export interface TerminalApi {
   open(req: OpenTerminalRequest): Promise<OpenTerminalResult>
   write(id: string, data: string): void
@@ -401,6 +409,8 @@ export interface TerminalApi {
   /** Tell the main process how many output bytes were actually rendered (flow control). */
   ack(id: string, bytes: number): void
   close(id: string): void
+  /** Recent commands from the shell history files on the server this terminal is connected to. */
+  history(id: string): Promise<HistoryResult>
   onData(listener: (e: TerminalDataEvent) => void): () => void
   onExit(listener: (e: TerminalExitEvent) => void): () => void
 }

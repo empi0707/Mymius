@@ -158,6 +158,7 @@ function registerIpc(): void {
   ipcMain.on(Channels.terminalWrite, (e, id: unknown, data: unknown) => terminals.write(e.sender.id, id, data))
   ipcMain.on(Channels.terminalResize, (e, id: unknown, c: unknown, r: unknown) => terminals.resize(e.sender.id, id, c, r))
   ipcMain.on(Channels.terminalAck, (e, id: unknown, n: unknown) => terminals.ack(e.sender.id, id, n))
+  ipcMain.handle(Channels.terminalHistory, (e, id: unknown) => terminals.history(e.sender.id, id))
   ipcMain.on(Channels.terminalClose, (e, id: unknown) => terminals.close(e.sender.id, id))
 }
 
