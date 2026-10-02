@@ -3,13 +3,16 @@ productName: Mymius
 executableName: mymius
 artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 publish: null   # phát hành thủ công: gửi bộ cài cho nhóm, không có auto-update
-# Không có module native bắt buộc: cpu-features/sshcrypto của ssh2 là tùy chọn và ssh2 tự dùng bản JS thuần.
+# node-pty (terminal local) là N-API: chạy trên mọi phiên bản Electron mà không cần rebuild; ssh2 có thêm cpu-features/sshcrypto tùy chọn và tự dùng bản JS thuần nên cũng không cần rebuild.
 npmRebuild: false
 directories:
   buildResources: build
   output: release
 files:
   - out/**/*
+# The pseudo-terminal addon (and, on macOS, its spawn-helper program) must be real files on disk, not inside app.asar.
+asarUnpack:
+  - "**/node_modules/node-pty/**"
 # One config, three platforms. Cross-building is limited (mac targets need macOS), so CI builds each on its own OS.
 mac:
   category: public.app-category.developer-tools

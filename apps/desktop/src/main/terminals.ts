@@ -1,8 +1,11 @@
-import { readFile } from 'node:fs/promises'
+import { open as openFile, readFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { defaultSshAgent } from '@mymius/platform'
 import { HISTORY_SCRIPT, TerminalHub, parseHistory, parseOpenRequest, resolveChain, shellQuote, type HostLookup, type ResolvedHost, type SshConnection } from '@mymius/ssh'
 import type { HistoryResult, OpenTerminalResult, TerminalDataEvent, TerminalExitEvent } from '../shared/ipc'
 import type { ConnectionBroker } from './connections'
+import { LocalShellSession } from './local-shell'
 import { expandHome } from './vault-service'
 
 /** Where terminal output goes. */
@@ -37,6 +40,31 @@ function size(raw: unknown): { cols: number; rows: number } {
   return { cols: r.cols, rows: r.rows }
 }
 
+/** The same history files, read straight from this computer's home folder (only the last part of each). */
+async function localHistory(): Promise<HistoryResult> {
+  const tail = async (path: string): Promise<string> => {
+    const f = await openFile(path, 'r').catch(() => undefined)
+    if (!f) return ''
+    try {
+      const { size } = await f.stat()
+      const len = Math.min(size, 512 * 1024)
+      const buf = Buffer.alloc(len)
+      await f.read(buf, 0, len, size - len)
+      return buf.toString('utf8').split('\n').slice(size > len ? 1 : 0).slice(-1500).join('\n')
+    } finally {
+      await f.close()
+    }
+  }
+  const home = homedir()
+  const names = [join(home, '.bash_history'), join(home, '.zsh_history'), join(process.env.XDG_DATA_HOME ?? join(home, '.local', 'share'), 'fish', 'fish_history')]
+  let text = ''
+  for (const n of names) {
+    const body = await tail(n)
+    if (body) text += `@@FILE ${n}\n${body}\n`
+  }
+  return { ok: true, entries: parseHistory(text) }
+}
+
 /** Connects the UI's terminal tabs to SSH: validation, connection sharing, output. */
 export class TerminalService {
   private readonly hub: TerminalHub
@@ -44,6 +72,8 @@ export class TerminalService {
   private readonly owners = new Map<string, number>()
   /** The connection each session runs on (its own, see ConnectionBroker), used to read the host's shell history. */
   private readonly connections = new Map<string, SshConnection>()
+  /** Sessions that are a shell on this computer (no SSH connection behind them). */
+  private readonly localIds = new Set<string>()
 
   constructor(private readonly out: TerminalOutput, private readonly broker: ConnectionBroker, private readonly saved: HostLookup) {
     this.hub = new TerminalHub({
@@ -55,6 +85,7 @@ export class TerminalService {
         const owner = this.owners.get(id)
         this.owners.delete(id)
         this.connections.delete(id)
+        this.localIds.delete(id)
         if (owner === undefined) return
         out.sendExit(owner, {
           id,
@@ -70,6 +101,13 @@ export class TerminalService {
   async open(owner: number, raw: unknown): Promise<OpenTerminalResult> {
     try {
       const r = (raw ?? {}) as Record<string, unknown>
+      if (r.local === true) {
+        const { cols, rows } = size(raw)
+        const id = this.hub.add(LocalShellSession.spawn(cols, rows))
+        this.owners.set(id, owner)
+        this.localIds.add(id)
+        return { ok: true, id }
+      }
       let chain: ResolvedHost[]
       let dims: { cols: number; rows: number }
       if (typeof r.hostId === 'string') {
@@ -98,6 +136,7 @@ export class TerminalService {
 
   /** Recent commands from the history files of the account this terminal is logged in as. Read-only, nothing is stored. */
   async history(owner: number, id: unknown): Promise<HistoryResult> {
+    if (this.owned(owner, id) && this.localIds.has(id)) return localHistory()
     const conn = this.owned(owner, id) ? this.connections.get(id) : undefined
     if (!conn || conn.closed) return { ok: false, error: 'Phiên terminal không còn kết nối' }
     try {

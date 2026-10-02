@@ -5,7 +5,7 @@ Dành cho người phát hành. Người dùng cuối chỉ cần cài bộ cài
 ## Chuẩn bị (một lần)
 
 - Node ≥ 22 và pnpm 10 (`corepack enable`).
-- `pnpm install`
+- `pnpm install`. Trên **Linux** bước này biên dịch `node-pty` (terminal local), nên cần `python3`, `make`, `g++` (Ubuntu/Debian: `sudo apt install build-essential python3`). Windows và macOS dùng binary dựng sẵn, không cần trình biên dịch.
 - Nhúng khóa dịch vụ vào bản build để máy khác không phải nhập (xem `docs/DROPBOX_SETUP.md`):
   ```bash
   cp apps/desktop/.env.example apps/desktop/.env   # điền MAIN_VITE_DROPBOX_APP_KEY=...

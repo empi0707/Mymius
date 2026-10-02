@@ -65,7 +65,7 @@ export function App(): React.JSX.Element {
         {/* Kept mounted (just hidden) so switching sections never kills a running terminal. */}
         {info && (
           <div className="section" hidden={section !== 'terminals'}>
-            <TerminalsPage os={info.os} visible={section === 'terminals'} {...(openReq ? { open: openReq } : {})} />
+            <TerminalsPage os={info.os} visible={section === 'terminals'} autoLocal={info.autoLocalTerminal} {...(openReq ? { open: openReq } : {})} />
           </div>
         )}
         {section === 'hosts' && (

@@ -205,3 +205,13 @@ Chuột phải vào file/thư mục (hoặc phím Menu / Shift+F10 trên dòng �
 - **Download**: hộp thoại chọn thư mục của hệ điều hành (`files.pickFolder`, mở sẵn ở Downloads), rồi chạy đúng luồng copy sẵn có từ pane server sang đĩa máy này: hỏi khi trùng tên (skip / keep both / replace), tiến độ và nút Cancel ở thanh job, thư mục được tải đệ quy. Không có thư mục tạm hay đường đi riêng nào khác.
 - Các lệnh còn lại dùng lại đúng hàm của nút trên toolbar và phím F2/F5/F6/F7/F8.
 
+## Terminal local
+
+Lần đầu trang Terminals hiện ra (và chưa có tab nào do Hosts yêu cầu), app mở sẵn một tab **Local**: một shell trên máy này. Đóng hết tab thì hiện form kết nối, có nút **Open local terminal** để mở lại.
+
+- `main/local-shell.ts`: `LocalShellSession` bọc `node-pty` và có cùng giao diện `TerminalSession` với shell SSH, nên `TerminalHub` (gom output, back-pressure), bộ định tuyến, xterm, resize, copy/paste và sidebar lịch sử dùng chung, không có đường đi riêng. Yêu cầu `{ local: true }` đi qua `TerminalService.open`.
+- Shell chọn như terminal của từng hệ điều hành (`shellCommand`, có unit test): `$SHELL` (macOS chạy dạng login shell `-l`), rơi về `/bin/zsh`/`/bin/bash`/`/bin/sh`; Windows dùng `powershell.exe`. Thư mục bắt đầu là thư mục home; `TERM=xterm-256color`.
+- Đóng tab là kết thúc tiến trình shell (đã kiểm tra bằng PID). Gõ `exit` thì tab báo đã đóng và nút Reconnect mở shell mới.
+- Sidebar lịch sử đọc trực tiếp `~/.bash_history`, `~/.zsh_history`, fish history của máy này (không hỗ trợ PSReadLine của PowerShell).
+- **Gói native**: `node-pty` dùng N-API nên không cần rebuild theo phiên bản Electron (`npmRebuild: false` vẫn đúng). Bản npm kèm sẵn binary cho macOS và Windows; trên **Linux nó được biên dịch lúc `pnpm install`**, nên máy phát triển/CI Linux cần `python3`, `make`, `g++`. `pnpm-workspace.yaml` cho phép script cài đặt của `node-pty` (`onlyBuiltDependencies`), và `electron-builder.yml` đặt `asarUnpack` cho nó (macOS cần cả chương trình `spawn-helper` nằm ngoài app.asar).
+

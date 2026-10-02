@@ -23,6 +23,7 @@
 | **Sync / backup bằng file `.json`** tùy chọn (không cần tài khoản: đặt file trong thư mục iCloud Drive, Dropbox, OneDrive, Syncthing, NAS...; sao lưu và khôi phục một lần) | Xong, có test + E2E |
 | **Ô tìm kiếm** trong thanh công cụ file manager: lọc file và thư mục của vị trí hiện hành theo tên, mỗi pane giữ tìm kiếm riêng (`Ctrl/Cmd+F`, `Esc` để xóa) | Xong, có test + E2E |
 | **Menu chuột phải** trong pane: Open, **Download…** (file/thư mục trên server về máy), Copy/Move sang pane kia, Rename, Copy path, Delete, New folder, Refresh | Xong, có test + E2E (chỉ thử với server SSH giả) |
+| **Terminal local**: tab Terminals mở sẵn một shell trên máy này (zsh/bash của bạn, PowerShell trên Windows) bằng pseudo-terminal thật (`node-pty`); `+` vẫn mở form SSH và có nút Open local terminal | Xong, có test + E2E và bản đóng gói Linux chạy thử; Windows/macOS chưa chạy thật |
 | **Thanh tiến trình nhỏ** ở góc trên bên phải: đang kết nối/tải thư mục từ máy chủ, đang mở hoặc tải lên file khi sửa từ xa, đang sao chép | Xong, có test + E2E |
 | **Nhập host cũ** từ ForkLift (`Favorites.json`) và `~/.ssh/config`: xem trước, bỏ chọn, phát hiện trùng, nối ProxyJump ([docs/IMPORT.md](docs/IMPORT.md)) | Xong, có test + E2E; định dạng ForkLift thật **chưa thử** |
 | **Tự động backup mỗi khi thêm host mới** (file `.json` mã hóa, mặc định bật, giữ 20 bản mới nhất, chọn được thư mục) | Xong, có test + E2E |

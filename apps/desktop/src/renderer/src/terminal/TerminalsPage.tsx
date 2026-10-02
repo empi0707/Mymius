@@ -25,7 +25,7 @@ export interface OpenRequest {
   target: TerminalTarget
 }
 
-export function TerminalsPage({ os, open, visible = true }: { os: OS; open?: OpenRequest; visible?: boolean }): React.JSX.Element {
+export function TerminalsPage({ os, open, visible = true, autoLocal = false }: { os: OS; open?: OpenRequest; visible?: boolean; autoLocal?: boolean }): React.JSX.Element {
   const [tabs, setTabs] = useState<Tab[]>([])
   const [active, setActive] = useState<string | 'new'>('new')
   const counter = useRef(0)
@@ -52,6 +52,12 @@ export function TerminalsPage({ os, open, visible = true }: { os: OS; open?: Ope
       add(open.target, open.title)
     }
   }, [open])
+
+  // The first time this page is shown (and nothing else asked for a tab), start with a shell on this computer.
+  useEffect(() => {
+    if (visible && autoLocal && counter.current === 0) add({ local: true }, 'Local')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, autoLocal])
   const patch = (key: string, p: Partial<Tab>): void => setTabs((t) => t.map((x) => (x.key === key ? { ...x, ...p } : x)))
   const record = (key: string, command: string): void =>
     setTabs((t) => t.map((x) => (x.key === key ? { ...x, typed: [command, ...x.typed.filter((c) => c !== command)].slice(0, 200) } : x)))
@@ -129,7 +135,7 @@ export function TerminalsPage({ os, open, visible = true }: { os: OS; open?: Ope
             )}
           </div>
         ))}
-        {(active === 'new' || tabs.length === 0) && <ConnectForm onConnect={(t) => add(t, `${t.username}@${t.host}`)} />}
+        {(active === 'new' || tabs.length === 0) && <ConnectForm onConnect={(t) => add(t, `${t.username}@${t.host}`)} onLocal={() => add({ local: true }, 'Local')} />}
       </div>
       {historyOpen && (() => {
         const tab = tabs.find((x) => x.key === active)

@@ -85,7 +85,9 @@ function registerIpc(): void {
     version: app.getVersion(),
     os: process.platform as OS,
     arch: process.arch,
-    secureStorage: osKeychain
+    secureStorage: osKeychain,
+    // The end-to-end tests of other features start from the connection form; they switch the default off.
+    autoLocalTerminal: !(import.meta.env.MODE === 'e2e' && process.env.MYMIUS_E2E_NO_LOCAL_TERMINAL === '1')
   }))
 
   ipcMain.handle(Channels.pickPrivateKey, async (e) => {

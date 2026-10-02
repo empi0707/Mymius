@@ -8,7 +8,8 @@ export async function launch(profileDir: string, env: Record<string, string> = {
   const app = await electron.launch({
     executablePath: electronPath as unknown as string,
     args: ['--no-sandbox', `--user-data-dir=${profileDir}`, appDir],
-    env: { ...process.env, NODE_ENV: 'production', ...env }
+    // The Terminals tab opens a local shell by default; most tests start from the connection form instead.
+    env: { ...process.env, NODE_ENV: 'production', MYMIUS_E2E_NO_LOCAL_TERMINAL: '1', ...env }
   })
   // Stand in for the user at the native dialogs, and for OS features that do not exist under Xvfb.
   await app.evaluate(({ dialog, shell }) => {

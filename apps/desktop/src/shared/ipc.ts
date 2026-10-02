@@ -12,6 +12,8 @@ export interface AppInfo {
   arch: string
   /** True when secrets can be stored in the OS keychain (false on Linux without libsecret/kwallet). */
   secureStorage: boolean
+  /** Open a terminal on this computer when the Terminals tab is first shown. */
+  autoLocalTerminal: boolean
 }
 
 export type OpenAuth =
@@ -21,6 +23,8 @@ export type OpenAuth =
 
 /** Connect to something typed into the form, or to a saved host by id (credentials never reach the UI). */
 export type TerminalTarget =
+  /** A shell on this computer. */
+  | { local: true }
   | { hostId: string }
   | { host: string; port: number; username: string; auth: OpenAuth }
 
