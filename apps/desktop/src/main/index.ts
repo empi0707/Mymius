@@ -121,6 +121,12 @@ function registerIpc(): void {
   ipcMain.handle(Channels.filesTransfer, (e, req: unknown) => fileService.transfer(e.sender.id, req))
   ipcMain.handle(Channels.filesCancel, (e, jobId: unknown) => fileService.cancel(e.sender.id, jobId))
   ipcMain.handle(Channels.filesOpen, (e, id: unknown, path: unknown) => fileService.open(e.sender.id, id, path))
+  ipcMain.handle(Channels.filesPickFolder, async (e): Promise<{ path: string | null }> => {
+    const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
+    const opts = { title: 'Choose where to save', defaultPath: app.getPath('downloads'), properties: ['openDirectory', 'createDirectory'] as ('openDirectory' | 'createDirectory')[] }
+    const r = await (win ? dialog.showOpenDialog(win, opts) : dialog.showOpenDialog(opts))
+    return { path: r.canceled ? null : (r.filePaths[0] ?? null) }
+  })
   ipcMain.handle(Channels.filesJobs, (e) => fileService.listJobs(e.sender.id))
   ipcMain.handle(Channels.syncCompare, (e, req: unknown) => fileService.syncCompare(e.sender.id, req))
   ipcMain.handle(Channels.syncPreview, (e, req: unknown) => fileService.syncPreview(e.sender.id, req))

@@ -327,6 +327,7 @@ export const Channels = {
   appInfo: 'app:info',
   setTheme: 'app:set-theme',
   pickPrivateKey: 'dialog:pick-private-key',
+  filesPickFolder: 'files:pick-folder',
   closeTab: 'menu:close-tab',
   terminalOpen: 'terminal:open',
   terminalWrite: 'terminal:write',
@@ -456,6 +457,8 @@ export interface FilesApi {
   cancel(jobId: string): Promise<void>
   /** Local file: open with the system app. Remote file: edit it here and upload on every save. */
   open(sessionId: string, path: string): Promise<Result<{ how: 'opened' | 'editing' }>>
+  /** Native "choose a folder" dialog (starts in Downloads). `path` is null when the person cancelled. */
+  pickFolder(): Promise<{ path: string | null }>
   jobs(): Promise<JobState[]>
   onJob(listener: (job: JobState) => void): () => void
   sync: {

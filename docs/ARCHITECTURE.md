@@ -196,3 +196,12 @@ Giới hạn: bash chỉ ghi lịch sử khi một phiên kết thúc (trừ khi
 ## Menu ứng dụng và phím đóng tab
 
 `apps/desktop/src/main/menu.ts` thay menu mặc định của Electron (menu mặc định gán Cmd/Ctrl+W cho "Close Window", nên bấm để đóng tab terminal lại đóng cả ứng dụng). macOS: **Cmd+W** đóng tab đang chọn, **Shift+Cmd+W** đóng cửa sổ. Windows/Linux: **Ctrl+Shift+W** đóng tab (đi cùng Ctrl+Shift+T mở tab), còn **Ctrl+W** để nguyên cho shell ("xóa từ"). Mục Close Tab chỉ có tác dụng khi đang ở trang Terminals; ở trang khác thì không làm gì. Khi chưa có tab nào, Cmd+W không đóng cửa sổ: dùng Shift+Cmd+W.
+
+## Menu chuột phải trong pane
+
+Chuột phải vào file/thư mục (hoặc phím Menu / Shift+F10 trên dòng đang chọn) mở menu: **Open, Download… (chỉ pane server), Copy/Move to other pane, Rename, Copy path, Delete, New folder, Refresh**. Chuột phải vào chỗ trống: New folder, Refresh, Select all. Chuột phải vào mục chưa chọn thì chọn mục đó; vào mục đang nằm trong vùng chọn thì menu tác động lên cả vùng chọn (Open và Rename bị tắt khi chọn nhiều mục).
+
+- Danh sách mục do `files/menu.ts` (`buildMenu`, hàm thuần, có unit test); `ContextMenu.tsx` vẽ và xử lý bàn phím (mũi tên, Enter, Esc, bấm ra ngoài).
+- **Download**: hộp thoại chọn thư mục của hệ điều hành (`files.pickFolder`, mở sẵn ở Downloads), rồi chạy đúng luồng copy sẵn có từ pane server sang đĩa máy này: hỏi khi trùng tên (skip / keep both / replace), tiến độ và nút Cancel ở thanh job, thư mục được tải đệ quy. Không có thư mục tạm hay đường đi riêng nào khác.
+- Các lệnh còn lại dùng lại đúng hàm của nút trên toolbar và phím F2/F5/F6/F7/F8.
+

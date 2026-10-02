@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FsEntry, FsListing, FsPlace, FsSessionInfo, HostSummary } from '../../../shared/ipc'
 import { setActivities } from '../activity/activity'
+import { ContextMenu } from './ContextMenu'
 import { formatDate, formatSize } from './format'
+import { buildMenu, type MenuAction } from './menu'
 import { searchEntries } from './search'
 import { useVirtualList } from './useVirtualList'
 
@@ -38,6 +40,10 @@ export interface PaneProps {
   onListing(listing: FsListing): void
   onDropItems(payload: DragPayload, targetDir: string, move: boolean): void
   onRetry(): void
+  /** The other pane is connected and can receive copies. */
+  hasTarget: boolean
+  /** An item of the right-click menu was chosen. `entry` is the row that was clicked, when there was one. */
+  onMenuAction(action: MenuAction, entry?: FsEntry): void
 }
 
 function compare(a: FsEntry, b: FsEntry, key: SortKey, dir: 1 | -1): number {
@@ -64,6 +70,7 @@ export function Pane(p: PaneProps): React.JSX.Element {
   const [editingPath, setEditingPath] = useState<string | null>(null)
   const [cursor, setCursor] = useState(0)
   const [dropTarget, setDropTarget] = useState<string | null>(null)
+  const [menu, setMenu] = useState<{ x: number; y: number; entry?: FsEntry } | null>(null)
   const anchor = useRef(0)
   const wrapper = useRef<HTMLDivElement>(null)
 
@@ -143,6 +150,15 @@ export function Pane(p: PaneProps): React.JSX.Element {
       e.preventDefault()
       select(Math.max(0, Math.min(rows.length - 1, to)), e.shiftKey ? 'range' : 'replace')
     }
+    if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+      e.preventDefault()
+      const entry = rows[cursor]
+      const el = wrapper.current?.querySelector<HTMLElement>(entry ? `[data-name="${CSS.escape(entry.name)}"]` : '.rows')
+      const r = el?.getBoundingClientRect()
+      if (entry && !selectedSet.has(entry.path)) select(cursor, 'replace')
+      setMenu({ x: (r?.left ?? 0) + 40, y: (r?.top ?? 0) + (entry ? ROW_HEIGHT : 8), ...(entry ? { entry } : {}) })
+      return
+    }
     switch (e.key) {
       case 'ArrowDown': return move(cursor + 1)
       case 'ArrowUp': return move(cursor - 1)
@@ -186,6 +202,21 @@ export function Pane(p: PaneProps): React.JSX.Element {
       p.onDropItems(payload, targetDir, e.shiftKey)
     } catch { /* not ours */ }
   }
+
+  const openMenu = (e: React.MouseEvent, entry: FsEntry | undefined, index = -1): void => {
+    e.preventDefault()
+    e.stopPropagation()
+    p.onActivate()
+    if (entry && !selectedSet.has(entry.path)) select(index, 'replace')
+    setMenu({ x: e.clientX, y: e.clientY, ...(entry ? { entry } : {}) })
+  }
+  const pick = (action: MenuAction): void => {
+    const entry = menu?.entry
+    setMenu(null)
+    if (action === 'selectAll') p.onSelect(rows.map((r) => r.path))
+    else p.onMenuAction(action, entry)
+  }
+  const menuCount = menu?.entry ? (selectedSet.has(menu.entry.path) ? p.selected.length : 1) : 0
 
   const hostOptions = p.hosts
 
@@ -271,6 +302,7 @@ export function Pane(p: PaneProps): React.JSX.Element {
         onDragLeave={() => setDropTarget(null)}
         onDrop={(e) => listing && onDrop(e, listing.path)}
         onClick={(e) => { if (e.target === e.currentTarget) p.onSelect([]) }}
+        onContextMenu={(e) => openMenu(e, undefined)}
       >
         {p.status === 'connecting' && <div className="pane-msg">Đang kết nối…</div>}
         {p.status === 'error' && <div className="pane-msg error" role="alert">{p.error} <button className="link" onClick={p.onRetry}>Retry</button></div>}
@@ -294,6 +326,7 @@ export function Pane(p: PaneProps): React.JSX.Element {
                 onDrop={(e) => { if (folder) { e.stopPropagation(); onDrop(e, entry.path) } }}
                 onClick={(e) => select(index, e.shiftKey ? 'range' : e.metaKey || e.ctrlKey ? 'toggle' : 'replace')}
                 onDoubleClick={() => activate(entry)}
+                onContextMenu={(e) => openMenu(e, entry, index)}
               >
                 <span className="c-name"><span className="ico" aria-hidden>{folder ? '📁' : entry.kind === 'symlink' ? '🔗' : '📄'}</span>{entry.name}</span>
                 <span className="c-size">{folder ? '' : formatSize(entry.size)}</span>
@@ -303,6 +336,16 @@ export function Pane(p: PaneProps): React.JSX.Element {
           })}
         </div>
       </div>
+
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          entries={buildMenu({ onItems: Boolean(menu.entry), count: menuCount, remote: p.session?.kind === 'sftp', hasTarget: p.hasTarget })}
+          onPick={pick}
+          onClose={() => setMenu(null)}
+        />
+      )}
 
       <div className="pane-foot">
         {listing ? `${rows.length} item${rows.length === 1 ? '' : 's'}${p.selected.length ? ` · ${p.selected.length} selected` : ''}${listing.truncated ? ' · list truncated' : ''}` : ''}

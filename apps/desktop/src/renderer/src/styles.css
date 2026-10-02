@@ -241,3 +241,13 @@ button.danger { padding: 7px 14px; border-radius: 6px; font: inherit; cursor: po
 .fm-search { width: 220px; max-width: 30vw; padding: 5px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; }
 .fm-search:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .pane-filter { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 3px 10px; font-size: 12px; color: var(--muted); background: color-mix(in srgb, var(--accent) 10%, transparent); border-bottom: 1px solid var(--line); flex: none; }
+
+/* Right-click menu of the file panes */
+.ctx-menu { position: fixed; z-index: 40; min-width: 220px; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); box-shadow: 0 6px 24px rgba(0,0,0,.3); font-size: 13px; }
+.ctx-item { display: flex; align-items: center; justify-content: space-between; gap: 18px; width: 100%; padding: 5px 10px; border: 0; border-radius: 5px; background: transparent; color: var(--fg); font: inherit; text-align: left; cursor: pointer; }
+.ctx-item kbd { font: inherit; font-size: 11px; color: var(--muted); }
+.ctx-item.focus:not(:disabled) { background: var(--accent); color: #fff; }
+.ctx-item.focus:not(:disabled) kbd { color: inherit; opacity: .8; }
+.ctx-item.danger:not(.focus) { color: var(--danger); }
+.ctx-item:disabled { opacity: .4; cursor: default; }
+.ctx-sep { height: 1px; margin: 4px 6px; background: var(--line); }

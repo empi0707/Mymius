@@ -4,7 +4,8 @@ import { filesActivities, setActivities } from '../activity/activity'
 import { useVault } from '../vault/useVault'
 import { JobsBar } from './JobsBar'
 import { Modal } from './Modal'
-import { Pane, type DragPayload } from './Pane'
+import { Pane, isFolder, type DragPayload } from './Pane'
+import type { MenuAction } from './menu'
 import { SyncDialog } from './SyncDialog'
 
 interface PaneState {
@@ -34,6 +35,7 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
   const [panes, setPanes] = useState<[PaneState, PaneState]>([emptyPane(), emptyPane()])
   const [active, setActive] = useState<0 | 1>(0)
   const [places, setPlaces] = useState<FsPlace[]>([])
+  const [local, setLocal] = useState<FsSessionInfo | null>(null)
   const [hosts, setHosts] = useState<HostSummary[] | null>(null)
   const [jobs, setJobs] = useState<JobState[]>([])
   const [edits, setEdits] = useState<EditInfo[]>([])
@@ -60,6 +62,7 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
     void window.mymius.files.places().then((r) => {
       if (!r.ok) return say(r.error, true)
       setPlaces(r.places)
+      setLocal(r.session)
       const home = r.session.home
       setPanes([{ ...emptyPane(), session: r.session, path: home, status: 'ready' }, { ...emptyPane(), session: r.session, path: home, status: 'ready' }])
     })
@@ -148,24 +151,36 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
     if (!r.ok) say(r.error, true)
   }, [ask, say])
 
-  const copyMove = (mode: 'copy' | 'move'): void => {
-    const s = panes[active], d = panes[other(active)]
+  /** Save the selected items of a server pane to a folder on this computer, asked for with the system dialog. */
+  const download = async (i: 0 | 1): Promise<void> => {
+    const s = panes[i]
+    if (!s.session || s.session.kind !== 'sftp') return say('Download chỉ dùng cho file trên server')
+    if (s.selected.length === 0) return say('Hãy chọn một mục trước')
+    const { path: dir } = await window.mymius.files.pickFolder()
+    if (!dir) return
+    const target = local ?? (await window.mymius.files.places().then((r) => (r.ok ? r.session : null)))
+    if (!target) return say('Không tìm thấy ổ đĩa của máy này', true)
+    await transfer('copy', s.session.id, s.selected, target.id, dir)
+  }
+
+  const copyMove = (mode: 'copy' | 'move', from: 0 | 1 = active): void => {
+    const s = panes[from], d = panes[other(from)]
     if (!s.session || !d.session || d.path === null) return
     void transfer(mode, s.session.id, s.selected, d.session.id, d.path)
   }
 
-  const newFolder = async (): Promise<void> => {
-    const s = panes[active]
+  const newFolder = async (side: 0 | 1 = active): Promise<void> => {
+    const s = panes[side]
     if (!s.session || s.path === null) return
     const name = await ask<string | null>((resolve) => ({ kind: 'name', title: 'New folder', initial: 'New folder', action: 'Create', resolve }))
     if (!name) return
     const r = await window.mymius.files.mkdir(s.session.id, s.path, name)
     if (!r.ok) say(r.error, true)
-    else patch(active, { reload: s.reload + 1, selected: [] })
+    else patch(side, { reload: s.reload + 1, selected: [] })
   }
 
-  const rename = async (): Promise<void> => {
-    const s = panes[active]
+  const rename = async (side: 0 | 1 = active): Promise<void> => {
+    const s = panes[side]
     if (!s.session || s.selected.length !== 1) return say('Hãy chọn đúng một mục để đổi tên')
     const path = s.selected[0]!
     const current = path.split(/[\\/]/).pop() ?? ''
@@ -173,17 +188,17 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
     if (!name || name === current) return
     const r = await window.mymius.files.rename(s.session.id, path, name)
     if (!r.ok) say(r.error, true)
-    else patch(active, { reload: s.reload + 1, selected: [] })
+    else patch(side, { reload: s.reload + 1, selected: [] })
   }
 
-  const remove = async (): Promise<void> => {
-    const s = panes[active]
+  const remove = async (side: 0 | 1 = active): Promise<void> => {
+    const s = panes[side]
     if (!s.session || s.selected.length === 0) return say('Hãy chọn một mục trước')
     const ok = await ask<boolean>((resolve) => ({ kind: 'delete', count: s.selected.length, local: s.session!.kind === 'local', resolve }))
     if (!ok) return
     const r = await window.mymius.files.delete(s.session.id, s.selected)
     if (!r.ok) say(r.error, true)
-    else patch(active, { selected: [] })
+    else patch(side, { selected: [] })
   }
 
   const openFile = async (i: 0 | 1, entry: FsEntry): Promise<void> => {
@@ -198,6 +213,26 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
     const to = panes[target].session
     if (!to) return
     void transfer(move ? 'move' : 'copy', payload.sessionId, payload.paths, to.id, dir)
+  }
+
+  const menuAction = (i: 0 | 1, action: MenuAction, entry?: FsEntry): void => {
+    setActive(i)
+    switch (action) {
+      case 'open': if (entry) { if (isFolder(entry)) navigate(i, entry.path); else void openFile(i, entry) } return
+      case 'download': return void download(i)
+      case 'copy': return copyMove('copy', i)
+      case 'move': return copyMove('move', i)
+      case 'rename': return void rename(i)
+      case 'delete': return void remove(i)
+      case 'newFolder': return void newFolder(i)
+      case 'refresh': return patch(i, { reload: panesRef.current[i].reload + 1 })
+      case 'copyPath': {
+        const text = panesRef.current[i].selected.join('\n')
+        void navigator.clipboard.writeText(text).then(() => say(panesRef.current[i].selected.length === 1 ? 'Đã sao chép đường dẫn' : 'Đã sao chép các đường dẫn'))
+        return
+      }
+      case 'selectAll': return
+    }
   }
 
   const focusPane = (i: 0 | 1): void => document.querySelector<HTMLElement>(`[data-testid="pane-${i}"]`)?.focus()
@@ -275,6 +310,8 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
             onListing={(l: FsListing) => patch(i, { path: l.path })}
             onDropItems={(payload, dir, move) => onDropItems(i, payload, dir, move)}
             onRetry={() => void reconnect(i)}
+            hasTarget={panes[other(i)].status === 'ready' && panes[other(i)].session !== null && panes[other(i)].path !== null}
+            onMenuAction={(action, entry) => menuAction(i, action, entry)}
           />
         ))}
       </div>

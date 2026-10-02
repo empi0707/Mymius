@@ -87,6 +87,7 @@ const api: MymiusApi = {
     transfer: (req) => ipcRenderer.invoke(Channels.filesTransfer, req),
     cancel: (jobId) => ipcRenderer.invoke(Channels.filesCancel, jobId),
     open: (sessionId, path) => ipcRenderer.invoke(Channels.filesOpen, sessionId, path),
+    pickFolder: () => ipcRenderer.invoke(Channels.filesPickFolder),
     jobs: () => ipcRenderer.invoke(Channels.filesJobs),
     onJob: (l) => subscribe<JobState>(Channels.filesJob, l),
     sync: {
