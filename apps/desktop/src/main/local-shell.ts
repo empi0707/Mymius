@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
-import * as pty from 'node-pty'
+import type * as Pty from 'node-pty'
 import type { TerminalExit, TerminalSession } from '@mymius/core'
 
 export interface ShellCommand {
@@ -29,7 +29,7 @@ export class LocalShellSession implements TerminalSession {
   private exit: TerminalExit | undefined
   private closed = false
 
-  private constructor(private readonly proc: pty.IPty) {
+  private constructor(private readonly proc: Pty.IPty) {
     proc.onData((d) => {
       const chunk = Buffer.isBuffer(d) ? d : Buffer.from(d as string)
       if (this.dataListeners.length === 0) this.early.push(chunk)
@@ -42,7 +42,17 @@ export class LocalShellSession implements TerminalSession {
     })
   }
 
-  static spawn(cols: number, rows: number): LocalShellSession {
+  /**
+   * node-pty is loaded on first use, not at start-up: if its native part is missing or broken (an install that
+   * skipped it, an unsupported platform) only local terminals fail, with a message, instead of the whole app.
+   */
+  static async spawn(cols: number, rows: number): Promise<LocalShellSession> {
+    let pty: typeof Pty
+    try {
+      pty = await import('node-pty')
+    } catch (err) {
+      throw new Error(`Không mở được terminal local: thiếu hoặc lỗi module node-pty (${(err as Error).message.split('\n')[0]}). Hãy chạy "pnpm install" rồi build lại ứng dụng.`)
+    }
     const { file, args } = shellCommand(process.platform, process.env)
     const env: Record<string, string> = {}
     for (const [k, v] of Object.entries(process.env)) if (v !== undefined) env[k] = v

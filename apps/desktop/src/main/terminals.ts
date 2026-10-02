@@ -103,7 +103,7 @@ export class TerminalService {
       const r = (raw ?? {}) as Record<string, unknown>
       if (r.local === true) {
         const { cols, rows } = size(raw)
-        const id = this.hub.add(LocalShellSession.spawn(cols, rows))
+        const id = this.hub.add(await LocalShellSession.spawn(cols, rows))
         this.owners.set(id, owner)
         this.localIds.add(id)
         return { ok: true, id }
