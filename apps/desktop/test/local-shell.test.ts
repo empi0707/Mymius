@@ -33,3 +33,21 @@ describe('when node-pty cannot be loaded', () => {
     vi.doUnmock('node-pty')
   })
 })
+
+describe('the pty helper program', () => {
+  it('gets its executable bit back wherever node-pty keeps it', async () => {
+    const { mkdtempSync, mkdirSync, writeFileSync, statSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const { makeSpawnHelperExecutable } = await import('../src/main/local-shell')
+    const root = mkdtempSync(join(tmpdir(), 'pty-'))
+    for (const d of ['prebuilds/darwin-arm64', 'build/Release']) {
+      mkdirSync(join(root, d), { recursive: true })
+      writeFileSync(join(root, d, 'spawn-helper'), 'x', { mode: 0o644 })
+    }
+    const fixed = makeSpawnHelperExecutable(root)
+    expect(fixed).toHaveLength(2)
+    for (const f of fixed) expect(statSync(f).mode & 0o111).toBe(0o111)
+    expect(makeSpawnHelperExecutable(root)).toEqual([]) // already fine: left alone
+  })
+})

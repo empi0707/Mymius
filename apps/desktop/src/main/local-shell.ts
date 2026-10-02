@@ -1,5 +1,7 @@
-import { existsSync } from 'node:fs'
+import { chmodSync, existsSync, statSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { homedir } from 'node:os'
+import { dirname, join } from 'node:path'
 import type * as Pty from 'node-pty'
 import type { TerminalExit, TerminalSession } from '@mymius/core'
 
@@ -18,6 +20,34 @@ export function shellCommand(platform: NodeJS.Platform, env: Record<string, stri
   const candidates = [env.SHELL, fallback, '/bin/sh']
   const file = candidates.find((c): c is string => Boolean(c) && exists(c as string)) ?? '/bin/sh'
   return { file, args: platform === 'darwin' ? ['-l'] : [] }
+}
+
+/**
+ * node-pty starts every shell through a small helper program, `spawn-helper`. The npm package ships it without the
+ * executable bit (and pnpm / electron-builder keep it that way), so on macOS the very first terminal fails with
+ * "posix_spawnp failed". Give it back the permission, wherever it sits (prebuilds/ or build/Release/, in
+ * node_modules or in app.asar.unpacked). Returns the files it changed.
+ */
+export function makeSpawnHelperExecutable(packageDir: string): string[] {
+  const root = packageDir.replace('app.asar', 'app.asar.unpacked')
+  const fixed: string[] = []
+  for (const dir of ['prebuilds/darwin-arm64', 'prebuilds/darwin-x64', 'build/Release']) {
+    const file = join(root, dir, 'spawn-helper')
+    try {
+      const mode = statSync(file).mode
+      if ((mode & 0o111) !== 0o111) { chmodSync(file, mode | 0o755); fixed.push(file) }
+    } catch { /* not there for this platform */ }
+  }
+  return fixed
+}
+
+function nodePtyDir(): string | undefined {
+  try {
+    const here = typeof __filename === 'string' ? __filename : join(process.cwd(), 'x.js')
+    return dirname(createRequire(here).resolve('node-pty/package.json'))
+  } catch {
+    return undefined
+  }
 }
 
 /** A shell on this computer, behind a pseudo-terminal, shaped like an SSH shell so tabs treat both alike. */
@@ -53,6 +83,7 @@ export class LocalShellSession implements TerminalSession {
     } catch (err) {
       throw new Error(`Không mở được terminal local: thiếu hoặc lỗi module node-pty (${(err as Error).message.split('\n')[0]}). Hãy chạy "pnpm install" rồi build lại ứng dụng.`)
     }
+    if (process.platform !== 'win32') { const dir = nodePtyDir(); if (dir) makeSpawnHelperExecutable(dir) }
     const { file, args } = shellCommand(process.platform, process.env)
     const env: Record<string, string> = {}
     for (const [k, v] of Object.entries(process.env)) if (v !== undefined) env[k] = v
@@ -60,8 +91,12 @@ export class LocalShellSession implements TerminalSession {
     env.TERM = 'xterm-256color'
     env.COLORTERM = 'truecolor'
     env.TERM_PROGRAM = 'Mymius'
-    const proc = pty.spawn(file, args, { name: 'xterm-256color', cols, rows, cwd: homedir(), env, encoding: null })
-    return new LocalShellSession(proc)
+    try {
+      const proc = pty.spawn(file, args, { name: 'xterm-256color', cols, rows, cwd: homedir(), env, encoding: null })
+      return new LocalShellSession(proc)
+    } catch (err) {
+      throw new Error(`Không khởi động được shell ${file}: ${(err as Error).message}`)
+    }
   }
 
   write(data: string | Uint8Array): void {
