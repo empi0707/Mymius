@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import type { OpenAssociation } from '../../../shared/ipc'
 import { getThemeChoice, setThemeChoice, type ThemeChoice } from '../theme'
 import { AutoBackupCard } from '../drive/AutoBackupCard'
 import { DriveCard } from '../drive/DriveCard'
@@ -10,6 +11,7 @@ export function SettingsPage(): React.JSX.Element {
     <div className="settings">
       <h2>Settings</h2>
       <AppearanceCard />
+      <OpenWithCard />
       <VaultGate>
         <DriveCard />
         <FileSyncCard />
@@ -40,6 +42,29 @@ function PassphraseCard(): React.JSX.Element {
         {msg && <p className={msg.error ? 'error' : 'hint'} role={msg.error ? 'alert' : 'status'}>{msg.text}</p>}
         <div className="row"><span className="grow" /><button type="submit" className="primary" disabled={!pass}>Change passphrase</button></div>
       </form>
+    </section>
+  )
+}
+
+/** The programs saved for opening files, with a way to forget each. */
+function OpenWithCard(): React.JSX.Element {
+  const [items, setItems] = useState<OpenAssociation[] | null>(null)
+  const load = (): void => void window.mymius.files.openWith.list().then(setItems)
+  useEffect(load, [])
+  return (
+    <section className="card" data-testid="openwith-card">
+      <h3>Open files with</h3>
+      <p className="hint">Ứng dụng đã chọn để mở file trong file manager. Chọn một ứng dụng khi mở file lần đầu (hoặc dùng Open with… trong menu chuột phải); file trên server được sửa bằng ứng dụng đó và tự tải lên mỗi lần lưu.</p>
+      {items?.length === 0 && <p className="hint">Chưa lưu lựa chọn nào.</p>}
+      <ul className="assoc">
+        {items?.map((a) => (
+          <li key={a.key} data-testid="assoc">
+            <strong>{a.label}</strong>
+            <span className="grow">{a.app.kind === 'system' ? 'Ứng dụng mặc định của hệ thống' : a.app.name}</span>
+            <button className="link" aria-label={`Forget ${a.label}`} onClick={() => void window.mymius.files.openWith.remove(a.key).then(load)}>Forget</button>
+          </li>
+        ))}
+      </ul>
     </section>
   )
 }

@@ -330,6 +330,10 @@ describe('editing a remote file', () => {
     await pane(1).locator('select').selectOption({ label: 'box' })
     await expect.poll(() => names(1)).toContain('app.conf')
     await row(1, 'app.conf').dblclick()
+    // Nothing is saved yet for this kind of file, so the app asks which program to use: take the system default, for every file.
+    await page.click('[role=dialog] label:has-text("Ứng dụng mặc định của hệ thống")')
+    await page.click('[role=dialog] label:has-text("Luôn dùng cho mọi file")')
+    await page.click('[role=dialog] button.primary')
     await page.locator('[data-testid="edit-app.conf"]').waitFor()
     await expect.poll(async () => (await H.openedByApp(app)).length).toBeGreaterThan(0)
     local = (await H.openedByApp(app)).at(-1)!

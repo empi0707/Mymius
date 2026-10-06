@@ -1,4 +1,4 @@
-export type MenuAction = 'open' | 'download' | 'copy' | 'move' | 'rename' | 'delete' | 'copyPath' | 'newFolder' | 'refresh' | 'selectAll'
+export type MenuAction = 'open' | 'edit' | 'openWith' | 'download' | 'copy' | 'move' | 'rename' | 'delete' | 'copyPath' | 'newFolder' | 'refresh' | 'selectAll'
 
 export type MenuEntry =
   | { separator: true }
@@ -9,6 +9,8 @@ export interface MenuContext {
   onItems: boolean
   /** How many entries the menu acts on. */
   count: number
+  /** The menu is for a single file (not a folder, not several items): only then can it be edited or opened with a chosen program. */
+  singleFile: boolean
   /** The pane shows a server (SFTP), so there is something to download. */
   remote: boolean
   /** The other pane is ready to receive copies. */
@@ -32,6 +34,8 @@ export function buildMenu(c: MenuContext): MenuEntry[] {
   const things = many ? `${c.count} items` : ''
   return [
     { action: 'open', label: 'Open', hint: 'Enter', disabled: many },
+    { action: 'edit', label: 'Edit', hint: 'F4', disabled: !c.singleFile },
+    { action: 'openWith', label: 'Open with…', disabled: !c.singleFile },
     ...(c.remote ? [SEP, { action: 'download', label: many ? `Download ${things}…` : 'Download…' } as MenuEntry] : []),
     SEP,
     { action: 'copy', label: many ? `Copy ${things} to other pane` : 'Copy to other pane', hint: 'F5', disabled: !c.hasTarget },

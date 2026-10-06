@@ -8,10 +8,11 @@ import { RemoteEditManager, type ConflictChoice, type ConflictContext, type Edit
 import type { HostLookup } from '@mymius/ssh'
 import { deletePaths, findConflicts, runTransfer, validateName } from '@mymius/transfer'
 import type {
-  ConflictPolicy, EditInfo, FsCrumb, FsEntry, FsEntryKind, FsListing, FsPlace, FsSessionInfo, JobIssue, JobState,
-  Result, SyncCompareRequest, SyncCompareResult, SyncDirection, SyncMode, SyncPlanRequest, SyncPreview, TransferRequest
+  AppChoice, ConflictPolicy, EditInfo, FsCrumb, FsEntry, FsEntryKind, FsListing, FsPlace, FsSessionInfo, JobIssue, JobState,
+  OpenOutcome, Result, SyncCompareRequest, SyncCompareResult, SyncDirection, SyncMode, SyncPlanRequest, SyncPreview, TransferRequest
 } from '../shared/ipc'
 import type { ConnectionBroker, Lease } from './connections'
+import { parseOpenOptions, type Decision } from './open-with'
 
 export interface FilesHost {
   home: string
@@ -20,6 +21,12 @@ export interface FilesHost {
   /** Move to the system trash (recoverable). Used for local deletes. */
   trashItem(path: string): Promise<void>
   openLocal(path: string): Promise<void>
+  /** Which program opens which kind of file (saved choices), and starting one. */
+  openWith: {
+    decide(fileName: string, mode: 'open' | 'edit' | 'with'): Decision
+    remember(fileName: string, how: 'none' | 'ext' | 'all', app: AppChoice): Promise<void>
+    launch(path: string, app: AppChoice): Promise<void>
+  }
   /** A remote file being edited changed on the server too: ask the user what to do. */
   confirmEditConflict(ctx: ConflictContext): Promise<ConflictChoice>
   emitJob(owner: number, job: JobState): void
@@ -477,20 +484,43 @@ export class FilesService {
 
   // ---- opening files & remote editing ------------------------------------------------------------
 
-  open(owner: number, sessionId: unknown, filePath: unknown): Promise<Result<{ how: 'opened' | 'editing' }>> {
+  /**
+   * Open a file. With no `options` it goes to the system's default program (the old behaviour). With them: the
+   * program saved for this kind of file, or the one chosen now; when there is none, `how: 'ask'` tells the UI
+   * to let the person pick. A server file is edited: it is downloaded, opened, and uploaded again on every save.
+   */
+  open(owner: number, sessionId: unknown, filePath: unknown, optionsRaw?: unknown): Promise<Result<OpenOutcome>> {
     return attempt(async () => {
       const s = this.session(owner, sessionId)
       const p = checkPath(filePath)
-      if (s.info.kind === 'local') {
-        await this.host.openLocal(p)
-        return { how: 'opened' as const }
+      const opts = optionsRaw === undefined ? undefined : parseOpenOptions(optionsRaw)
+      const name = s.provider.path.basename(p)
+      let app: AppChoice | undefined
+      if (opts) {
+        if (opts.app) {
+          app = opts.app
+        } else {
+          const d = this.host.openWith.decide(name, opts.mode)
+          if ('ask' in d) {
+            const dot = name.lastIndexOf('.')
+            return { how: 'ask' as const, name, ext: dot > 0 && dot < name.length - 1 ? name.slice(dot).toLowerCase() : '' }
+          }
+          app = d.use
+        }
       }
-      await this.editOpen(owner, s, p)
-      return { how: 'editing' as const }
+      const launch = (file: string): Promise<void> => (app && app.kind === 'app' ? this.host.openWith.launch(file, app) : this.host.openLocal(file))
+      if (s.info.kind === 'local') {
+        await launch(p)
+      } else {
+        await this.editOpen(owner, s, p, launch)
+      }
+      // Only remember a choice that actually worked.
+      if (opts?.app && opts.remember && opts.remember !== 'none') await this.host.openWith.remember(name, opts.remember, opts.app)
+      return { how: s.info.kind === 'local' ? ('opened' as const) : ('editing' as const) }
     })
   }
 
-  private async editOpen(owner: number, s: Session, remotePath: string): Promise<void> {
+  private async editOpen(owner: number, s: Session, remotePath: string, launch: (localPath: string) => Promise<void>): Promise<void> {
     if (!s.info.hostId) throw new Error('Không thể sửa ở đây')
     const st = await s.provider.stat(remotePath)
     if (!st || st.kind !== 'file') throw new Error('Chỉ có thể sửa file')
@@ -505,7 +535,7 @@ export class FilesService {
         provider,
         remotePath,
         workRoot: this.host.workRoot,
-        openInEditor: (local) => this.host.openLocal(local),
+        openInEditor: launch,
         resolveConflict: (ctx) => this.host.confirmEditConflict(ctx)
       })
       const rec: EditRecord = { owner, name: s.provider.path.basename(remotePath), remotePath, hostLabel: s.info.label, provider, lease }

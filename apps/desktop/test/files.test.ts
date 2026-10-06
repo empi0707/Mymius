@@ -8,6 +8,7 @@ import { VaultStore } from '@mymius/vault'
 import type { EditInfo, JobState, Result } from '../src/shared/ipc'
 import { ConnectionBroker } from '../src/main/connections'
 import { FilesService, LOCAL_SESSION, type FilesHost } from '../src/main/files'
+import { OpenWithStore } from '../src/main/open-with'
 import { VaultService } from '../src/main/vault-service'
 
 const FAST = { memoryKiB: 64, iterations: 1, parallelism: 1 }
@@ -22,6 +23,8 @@ let hostId: string
 let jobs: JobState[]
 let edits: EditInfo[]
 let opened: string[]
+let launched: { app: string; file: string }[]
+let openWith: OpenWithStore
 let trashed: string[]
 let conflictChoice: ConflictChoice
 let conflicts: ConflictContext[]
@@ -31,7 +34,7 @@ beforeEach(async () => {
   base = await mkdtemp(join(tmpdir(), 'mymius-files-'))
   home = join(base, 'home'); remote = join(base, 'remote')
   await mkdir(home); await mkdir(remote)
-  jobs = []; edits = []; opened = []; trashed = []; conflicts = []; conflictChoice = 'cancel'
+  jobs = []; edits = []; opened = []; launched = []; trashed = []; conflicts = []; conflictChoice = 'cancel'
   server = await startSshTestServer(remote, { password: 'secret' })
   svc = new VaultService(new VaultStore(join(base, 'vault.json'), { kdf: FAST }), { readTextFile: async () => '', agentSocket: () => undefined })
   await svc.create('a decent passphrase', false)
@@ -39,11 +42,17 @@ beforeEach(async () => {
   if (!saved.ok) throw new Error(saved.error)
   hostId = saved.id
   const broker = new ConnectionBroker({ knownHostsFile: join(base, 'known.json'), confirmHostKey: async () => true }, svc.lookup)
+  openWith = new OpenWithStore(join(base, 'open-with.json'))
   const host: FilesHost = {
     home,
     workRoot: join(base, 'edit-cache'),
     trashItem: async (p) => { trashed.push(p); await rm(p, { recursive: true, force: true }) },
     openLocal: async (p) => { opened.push(p) },
+    openWith: {
+      decide: (name, mode) => openWith.decide(name, mode),
+      remember: (name, how, app) => openWith.remember(name, how, app),
+      launch: async (p, app) => { if (app.kind === 'app') launched.push({ app: app.path, file: p }); else opened.push(p) }
+    },
     confirmEditConflict: async (ctx) => { conflicts.push(ctx); return conflictChoice },
     emitJob: (_o, j) => jobs.push(j),
     emitEdit: (_o, e) => edits.push(e)
@@ -460,6 +469,86 @@ describe('editing a remote file', () => {
     await files.disconnect(OWNER, sid)
     await writeFile(local, 'saved after disconnect\n')
     await waitRemote('app.conf', 'saved after disconnect\n')
+  })
+})
+
+describe('choosing the program a file opens with', () => {
+  const VSCODE = { kind: 'app' as const, path: '/opt/editor/bin/edit', name: 'Editor' }
+  const waitRemote = (name: string, content: string) => until(async () => (await readFile(join(remote, name), 'utf8').catch(() => '')) === content, `${name} to become ${content}`, 12_000)
+
+  it('asks which program to use when nothing is saved, for opening, editing and "open with"', async () => {
+    await put(remote, 'index.html', '<p>hi</p>')
+    const sid = await connect()
+    for (const mode of ['open', 'edit', 'with'] as const) {
+      const r = ok(await files.open(OWNER, sid, '/index.html', { mode }))
+      expect(r).toMatchObject({ how: 'ask', name: 'index.html', ext: '.html' })
+    }
+    expect(opened).toEqual([])
+    expect(files.listEdits(OWNER)).toEqual([])
+  })
+
+  it('opens the file in the chosen program, which edits the local copy that is uploaded on save', async () => {
+    await put(remote, 'index.html', '<p>hi</p>')
+    const sid = await connect()
+    expect(ok(await files.open(OWNER, sid, '/index.html', { mode: 'edit', app: VSCODE })).how).toBe('editing')
+    expect(launched).toHaveLength(1)
+    expect(launched[0]!.app).toBe(VSCODE.path)
+    expect(opened).toEqual([]) // not the system default (the browser)
+    expect(await readFile(launched[0]!.file, 'utf8')).toBe('<p>hi</p>')
+    await writeFile(launched[0]!.file, '<p>edited</p>')
+    await waitRemote('index.html', '<p>edited</p>')
+  })
+
+  it('remembers a choice for the extension: the same type no longer asks, another type still does', async () => {
+    await put(remote, 'a.html', 'a'); await put(remote, 'b.html', 'b'); await put(remote, 'c.txt', 'c')
+    const sid = await connect()
+    ok(await files.open(OWNER, sid, '/a.html', { mode: 'open', app: VSCODE, remember: 'ext' }))
+    expect(ok(await files.open(OWNER, sid, '/b.html', { mode: 'open' })).how).toBe('editing')
+    expect(launched.map((l) => l.app)).toEqual([VSCODE.path, VSCODE.path])
+    expect(ok(await files.open(OWNER, sid, '/c.txt', { mode: 'open' })).how).toBe('ask')
+    expect(openWith.list().map((a) => a.key)).toEqual(['.html'])
+  })
+
+  it('"for all files" covers every type, and an extension can override it', async () => {
+    const OTHER = { kind: 'app' as const, path: '/opt/other/bin/view', name: 'Other' }
+    await put(remote, 'a.html', 'a'); await put(remote, 'x.md', 'x')
+    const sid = await connect()
+    ok(await files.open(OWNER, sid, '/x.md', { mode: 'open', app: VSCODE, remember: 'all' }))
+    ok(await files.open(OWNER, sid, '/a.html', { mode: 'open', app: OTHER, remember: 'ext' }))
+    ok(await files.open(OWNER, sid, '/x.md', { mode: 'open' }))
+    ok(await files.open(OWNER, sid, '/a.html', { mode: 'open' }))
+    expect(launched.map((l) => l.app)).toEqual([VSCODE.path, OTHER.path, VSCODE.path, OTHER.path])
+  })
+
+  it('Edit never settles for "the system default"; Open can', async () => {
+    await put(remote, 'a.html', 'a')
+    const sid = await connect()
+    ok(await files.open(OWNER, sid, '/a.html', { mode: 'open', app: { kind: 'system' }, remember: 'ext' }))
+    expect(opened).toHaveLength(1) // opened with the system default, as chosen
+    expect(ok(await files.open(OWNER, sid, '/a.html', { mode: 'open' })).how).toBe('editing') // saved choice used silently
+    expect(ok(await files.open(OWNER, sid, '/a.html', { mode: 'edit' })).how).toBe('ask') // but editing wants a real program
+    expect(fail(await files.open(OWNER, sid, '/a.html', { mode: 'edit', app: { kind: 'system' } }))).toMatch(/ứng dụng cụ thể/)
+  })
+
+  it('local files can be opened with a chosen program too, and a bad choice is rejected', async () => {
+    await put(home, 'n.txt', 'n')
+    expect(ok(await files.open(OWNER, LOCAL_SESSION, join(home, 'n.txt'), { mode: 'edit', app: VSCODE })).how).toBe('opened')
+    expect(launched).toEqual([{ app: VSCODE.path, file: join(home, 'n.txt') }])
+    expect(fail(await files.open(OWNER, LOCAL_SESSION, join(home, 'n.txt'), { mode: 'open', app: { kind: 'app', path: 'relative/editor' } as never }))).toMatch(/không hợp lệ/)
+    expect(fail(await files.open(OWNER, LOCAL_SESSION, join(home, 'n.txt'), { mode: 'burn' } as never))).toMatch(/không hợp lệ/)
+  })
+
+  it('a saved choice can be removed, and survives a restart', async () => {
+    await put(remote, 'a.html', 'a')
+    const sid = await connect()
+    ok(await files.open(OWNER, sid, '/a.html', { mode: 'open', app: VSCODE, remember: 'ext' }))
+    const again = new OpenWithStore(join(base, 'open-with.json'))
+    await again.load()
+    expect(again.list()).toEqual([{ key: '.html', label: '.html', app: VSCODE }])
+    await again.remove('.html')
+    const third = new OpenWithStore(join(base, 'open-with.json'))
+    await third.load()
+    expect(third.list()).toEqual([])
   })
 })
 

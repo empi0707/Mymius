@@ -78,7 +78,7 @@ describe('right-click menu', () => {
     expect(await itemsInMenu()).not.toContain('Download…')
     await page.keyboard.press('Escape')
     await rightClick(1, 'notes.txt')
-    expect(await itemsInMenu()).toEqual(['Open', 'Download…', 'Copy to other pane', 'Move to other pane', 'Rename', 'Copy path', 'Delete', 'New folder', 'Refresh'])
+    expect(await itemsInMenu()).toEqual(['Open', 'Edit', 'Open with…', 'Download…', 'Copy to other pane', 'Move to other pane', 'Rename', 'Copy path', 'Delete', 'New folder', 'Refresh'])
     await page.keyboard.press('Escape')
   })
 

@@ -215,3 +215,15 @@ Lần đầu trang Terminals hiện ra (và chưa có tab nào do Hosts yêu c�
 - Sidebar lịch sử đọc trực tiếp `~/.bash_history`, `~/.zsh_history`, fish history của máy này (không hỗ trợ PSReadLine của PowerShell).
 - **Gói native**: `node-pty` dùng N-API nên không cần rebuild theo phiên bản Electron (`npmRebuild: false` vẫn đúng). Bản npm kèm sẵn binary cho macOS và Windows; trên **Linux nó được biên dịch lúc `pnpm install`**, nên máy phát triển/CI Linux cần `python3`, `make`, `g++`. `pnpm-workspace.yaml` cho phép script cài đặt của `node-pty` (`onlyBuiltDependencies`), và `electron-builder.yml` đặt `asarUnpack` cho nó (macOS cần cả chương trình `spawn-helper` nằm ngoài app.asar).
 
+## Chọn ứng dụng mở file (Open / Edit / Open with…)
+
+Trước đây file trên server được tải về bản tạm rồi mở bằng ứng dụng mặc định của hệ điều hành, nên `.html` mở ra trình duyệt (trình duyệt không lưu ngược lên server). Giờ có ba cách mở, tính theo từng file:
+
+- **Open** (nhấp đúp, Enter, menu): dùng ứng dụng đã lưu cho đuôi file đó, nếu không có thì ứng dụng đã lưu cho *mọi file*, nếu vẫn không có thì **hỏi**. Có thể chọn "ứng dụng mặc định của hệ thống".
+- **Edit** (menu chuột phải, **F4**): như Open nhưng bắt buộc là một ứng dụng cụ thể (lựa chọn "mặc định hệ thống" bị bỏ qua), vì ứng dụng mặc định thường chỉ xem hoặc là trình duyệt.
+- **Open with…**: luôn hỏi.
+
+Hộp thoại hỏi cho chọn ứng dụng bằng hộp thoại hệ điều hành (`files.pickApp`) và cách nhớ: *luôn cho đuôi .ext* (mặc định), *luôn cho mọi file*, hoặc *chỉ lần này*. Lựa chọn chỉ được lưu sau khi mở thành công. Lưu ở `open-with.json` trong thư mục dữ liệu của app, **riêng từng máy** (không vào vault, không đồng bộ vì đường dẫn ứng dụng khác nhau mỗi máy). Settings → Open files with liệt kê và cho Forget từng mục.
+
+Với file trên server, ứng dụng được chọn mở **bản tạm**, vẫn theo dõi thay đổi và tải lên mỗi lần lưu, phát hiện xung đột như cũ (`RemoteEditManager.openInEditor` nay nhận hàm khởi chạy riêng). Ứng dụng chạy bằng `execFile`/`open -a`/`start` (không qua shell, nên tên file không chèn được lệnh) và tách khỏi Mymius (`detached`). `files.open` không có tham số `options` vẫn giữ hành vi cũ (ứng dụng mặc định) để tương thích.
+

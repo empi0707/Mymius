@@ -251,3 +251,11 @@ button.danger { padding: 7px 14px; border-radius: 6px; font: inherit; cursor: po
 .ctx-item.danger:not(.focus) { color: var(--danger); }
 .ctx-item:disabled { opacity: .4; cursor: default; }
 .ctx-sep { height: 1px; margin: 4px 6px; background: var(--line); }
+
+/* Open with… dialog and its Settings list */
+.openwith { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 8px 0; }
+.openwith .full { flex-basis: 100%; }
+.openwith-app { font-weight: 600; min-width: 80px; }
+.assoc { list-style: none; margin: 8px 0 0; padding: 0; }
+.assoc li { display: flex; align-items: center; gap: 12px; padding: 5px 0; border-bottom: 1px solid var(--line); }
+.assoc li strong { min-width: 90px; }

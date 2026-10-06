@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ConflictPolicy, EditInfo, FsEntry, FsListing, FsPlace, FsSessionInfo, HostSummary, JobState } from '../../../shared/ipc'
+import type { AppChoice, ConflictPolicy, EditInfo, FsEntry, FsListing, FsPlace, FsSessionInfo, HostSummary, JobState, OpenMode, OpenOptions } from '../../../shared/ipc'
 import { filesActivities, setActivities } from '../activity/activity'
 import { useVault } from '../vault/useVault'
 import { JobsBar } from './JobsBar'
@@ -25,6 +25,7 @@ type Dialog =
   | { kind: 'conflict'; names: string[]; resolve(p: ConflictPolicy | null): void }
   | { kind: 'delete'; count: number; local: boolean; resolve(ok: boolean): void }
   | { kind: 'name'; title: string; initial: string; action: string; resolve(name: string | null): void }
+  | { kind: 'openwith'; name: string; ext: string; mode: OpenMode; resolve(o: OpenOptions | null): void }
   | { kind: 'sync' }
 
 const emptyPane = (): PaneState => ({ session: null, path: null, selected: [], reload: 0, status: 'connecting', query: '' })
@@ -201,12 +202,27 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
     else patch(side, { selected: [] })
   }
 
-  const openFile = async (i: 0 | 1, entry: FsEntry): Promise<void> => {
+  /**
+   * Open a file. `open`: with the program saved for its type (a server file is then edited, and uploaded on every
+   * save); `edit`: the same but it must be a real program; `with`: always choose. When nothing is saved yet the
+   * server side says so and a dialog lets the person pick, once or for good.
+   */
+  const openFile = async (i: 0 | 1, entry: FsEntry, mode: OpenMode = 'open'): Promise<void> => {
     const s = panes[i].session
     if (!s) return
-    const r = await window.mymius.files.open(s.id, entry.path)
-    if (!r.ok) say(r.error, true)
-    else if (r.how === 'editing') say(`Đang sửa ${entry.name}. Bấm lưu trong trình soạn thảo là file tự động được tải lên.`)
+    let options: OpenOptions = { mode }
+    for (let round = 0; round < 3; round++) {
+      const r = await window.mymius.files.open(s.id, entry.path, options)
+      if (!r.ok) return say(r.error, true)
+      if (r.how === 'ask') {
+        const choice = await ask<OpenOptions | null>((resolve) => ({ kind: 'openwith', name: r.name, ext: r.ext, mode, resolve }))
+        if (!choice) return
+        options = choice
+        continue
+      }
+      if (r.how === 'editing') say(`Đang sửa ${entry.name}. Bấm lưu trong trình soạn thảo là file tự động được tải lên.`)
+      return
+    }
   }
 
   const onDropItems = (target: 0 | 1, payload: DragPayload, dir: string, move: boolean): void => {
@@ -219,6 +235,8 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
     setActive(i)
     switch (action) {
       case 'open': if (entry) { if (isFolder(entry)) navigate(i, entry.path); else void openFile(i, entry) } return
+      case 'edit': if (entry && !isFolder(entry)) void openFile(i, entry, 'edit'); return
+      case 'openWith': if (entry && !isFolder(entry)) void openFile(i, entry, 'with'); return
       case 'download': return void download(i)
       case 'copy': return copyMove('copy', i)
       case 'move': return copyMove('move', i)
@@ -357,6 +375,8 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
 
       {dialog?.kind === 'name' && <NameDialog spec={dialog} />}
 
+      {dialog?.kind === 'openwith' && <OpenWithDialog spec={dialog} />}
+
       {dialog?.kind === 'sync' && panes[0].session && panes[1].session && panes[0].path !== null && panes[1].path !== null && (
         <SyncDialog
           left={{ sessionId: panes[0].session.id, path: panes[0].path }}
@@ -369,6 +389,44 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
         />
       )}
     </div>
+  )
+}
+
+/** Pick the program for a file, and whether to remember it. */
+function OpenWithDialog({ spec }: { spec: Extract<Dialog, { kind: 'openwith' }> }): React.JSX.Element {
+  const system = spec.mode !== 'edit'
+  const [use, setUse] = useState<'app' | 'system'>('app')
+  const [app, setApp] = useState<AppChoice | null>(null)
+  const [remember, setRemember] = useState<'none' | 'ext' | 'all'>(spec.ext ? 'ext' : 'all')
+  const browse = async (): Promise<void> => {
+    const r = await window.mymius.files.pickApp()
+    if (r.app) { setApp(r.app); setUse('app') }
+  }
+  const choice: AppChoice | null = use === 'system' ? { kind: 'system' } : app
+  const ext = spec.ext || 'file không có phần mở rộng'
+  return (
+    <Modal
+      title={spec.mode === 'edit' ? `Edit ${spec.name}` : `Open ${spec.name}`}
+      onCancel={() => spec.resolve(null)}
+      actions={<>
+        <button className="secondary" onClick={() => spec.resolve(null)}>Cancel</button>
+        <button className="primary" disabled={!choice} onClick={() => choice && spec.resolve({ mode: spec.mode, app: choice, remember })}>{spec.mode === 'edit' ? 'Edit' : 'Open'}</button>
+      </>}
+    >
+      <p>Chọn ứng dụng để mở “{spec.name}”. Với file trên server, ứng dụng sửa bản tạm trên máy này và mỗi lần lưu là file tự động được tải lên server.</p>
+      <div className="openwith" role="radiogroup" aria-label="Application">
+        <label className="radio"><input type="radio" name="use" checked={use === 'app'} onChange={() => setUse('app')} />Ứng dụng:</label>
+        <span className="openwith-app" data-testid="openwith-app">{app?.kind === 'app' ? app.name : 'chưa chọn'}</span>
+        <button className="secondary" onClick={() => void browse()}>Choose application…</button>
+        {system && <label className="radio full"><input type="radio" name="use" checked={use === 'system'} onChange={() => setUse('system')} />Ứng dụng mặc định của hệ thống (với file .html thường là trình duyệt)</label>}
+      </div>
+      <div className="openwith" role="radiogroup" aria-label="Remember">
+        <label className="radio full"><input type="radio" name="remember" checked={remember === 'ext'} disabled={!spec.ext} onChange={() => setRemember('ext')} />Luôn dùng cho file {ext}</label>
+        <label className="radio full"><input type="radio" name="remember" checked={remember === 'all'} onChange={() => setRemember('all')} />Luôn dùng cho mọi file</label>
+        <label className="radio full"><input type="radio" name="remember" checked={remember === 'none'} onChange={() => setRemember('none')} />Chỉ lần này</label>
+      </div>
+      <p className="hint">Có thể đổi hoặc xóa lựa chọn đã lưu ở Settings → Open files with.</p>
+    </Modal>
   )
 }
 

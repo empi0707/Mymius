@@ -332,6 +332,9 @@ export const Channels = {
   setTheme: 'app:set-theme',
   pickPrivateKey: 'dialog:pick-private-key',
   filesPickFolder: 'files:pick-folder',
+  filesPickApp: 'files:pick-app',
+  openWithList: 'files:open-with-list',
+  openWithRemove: 'files:open-with-remove',
   closeTab: 'menu:close-tab',
   terminalOpen: 'terminal:open',
   terminalWrite: 'terminal:write',
@@ -447,6 +450,25 @@ export interface KeysApi {
   delete(id: string): Promise<Result>
 }
 
+/** The application a file is opened with: the system's default for its type, or a program the person picked. */
+export type AppChoice = { kind: 'system' } | { kind: 'app'; path: string; name: string }
+/** open: the saved choice for this type of file (or ask). edit: needs a real application. with: always ask. */
+export type OpenMode = 'open' | 'edit' | 'with'
+export interface OpenOptions {
+  mode: OpenMode
+  /** The application to use now; without it the saved choice is used, or `how: 'ask'` comes back. */
+  app?: AppChoice
+  /** Keep `app` for this extension, for every file, or only this time. */
+  remember?: 'none' | 'ext' | 'all'
+}
+export type OpenOutcome = { how: 'opened' | 'editing' } | { how: 'ask'; name: string; ext: string }
+/** A saved "open this kind of file with that program" choice. */
+export interface OpenAssociation {
+  key: string
+  label: string
+  app: AppChoice
+}
+
 export interface FilesApi {
   places(): Promise<Result<{ session: FsSessionInfo; places: FsPlace[] }>>
   connect(hostId: string): Promise<Result<{ session: FsSessionInfo }>>
@@ -460,7 +482,13 @@ export interface FilesApi {
   transfer(req: TransferRequest): Promise<Result<{ jobId: string }>>
   cancel(jobId: string): Promise<void>
   /** Local file: open with the system app. Remote file: edit it here and upload on every save. */
-  open(sessionId: string, path: string): Promise<Result<{ how: 'opened' | 'editing' }>>
+  open(sessionId: string, path: string, options?: OpenOptions): Promise<Result<OpenOutcome>>
+  /** Native dialog to pick a program. `app` is null when the person cancelled. */
+  pickApp(): Promise<{ app: AppChoice | null }>
+  openWith: {
+    list(): Promise<OpenAssociation[]>
+    remove(key: string): Promise<void>
+  }
   /** Native "choose a folder" dialog (starts in Downloads). `path` is null when the person cancelled. */
   pickFolder(): Promise<{ path: string | null }>
   jobs(): Promise<JobState[]>

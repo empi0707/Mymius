@@ -86,7 +86,12 @@ const api: MymiusApi = {
     conflicts: (req) => ipcRenderer.invoke(Channels.filesConflicts, req),
     transfer: (req) => ipcRenderer.invoke(Channels.filesTransfer, req),
     cancel: (jobId) => ipcRenderer.invoke(Channels.filesCancel, jobId),
-    open: (sessionId, path) => ipcRenderer.invoke(Channels.filesOpen, sessionId, path),
+    open: (sessionId, path, options) => ipcRenderer.invoke(Channels.filesOpen, sessionId, path, options),
+    pickApp: () => ipcRenderer.invoke(Channels.filesPickApp),
+    openWith: {
+      list: () => ipcRenderer.invoke(Channels.openWithList),
+      remove: (key) => ipcRenderer.invoke(Channels.openWithRemove, key)
+    },
     pickFolder: () => ipcRenderer.invoke(Channels.filesPickFolder),
     jobs: () => ipcRenderer.invoke(Channels.filesJobs),
     onJob: (l) => subscribe<JobState>(Channels.filesJob, l),

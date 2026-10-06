@@ -172,6 +172,12 @@ export function Pane(p: PaneProps): React.JSX.Element {
         if (entry) activate(entry)
         return
       }
+      case 'F4': {
+        e.preventDefault()
+        const entry = rows[cursor]
+        if (entry && !isFolder(entry)) p.onMenuAction('edit', entry)
+        return
+      }
       case 'Backspace':
         if (!meta && listing?.parent) { e.preventDefault(); p.onNavigate(listing.parent) }
         return
@@ -341,7 +347,7 @@ export function Pane(p: PaneProps): React.JSX.Element {
         <ContextMenu
           x={menu.x}
           y={menu.y}
-          entries={buildMenu({ onItems: Boolean(menu.entry), count: menuCount, remote: p.session?.kind === 'sftp', hasTarget: p.hasTarget })}
+          entries={buildMenu({ onItems: Boolean(menu.entry), count: menuCount, singleFile: menuCount === 1 && menu.entry !== undefined && !isFolder(menu.entry), remote: p.session?.kind === 'sftp', hasTarget: p.hasTarget })}
           onPick={pick}
           onClose={() => setMenu(null)}
         />

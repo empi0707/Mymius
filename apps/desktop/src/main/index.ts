@@ -1,16 +1,17 @@
 import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, safeStorage, shell } from 'electron'
 import { homedir, userInfo } from 'node:os'
 import { defaultSshAgent } from '@mymius/platform'
 import { VaultStore } from '@mymius/vault'
-import { Channels, type AppInfo, type OS } from '../shared/ipc'
+import { Channels, type AppChoice, type AppInfo, type OS } from '../shared/ipc'
 import { ConnectionBroker } from './connections'
 import { DriveSyncService } from './drive-service'
 import { ImportService } from './import-service'
 import { AutoBackupService } from './auto-backup-service'
 import { FileSyncService } from './file-sync-service'
 import { FilesService } from './files'
+import { OpenWithStore, launchWith } from './open-with'
 import { OsSecretStore } from './secret-store'
 import { menuTemplate } from './menu'
 import { TerminalService } from './terminals'
@@ -28,6 +29,7 @@ app.setAboutPanelOptions({ applicationName: 'Mymius' })
 interface DriveEndpoints { authEndpoint?: string; tokenEndpoint?: string; revokeEndpoint?: string; baseUrl?: string }
 
 let terminals: TerminalService
+let openWith: OpenWithStore
 let fileService: FilesService
 let driveService: DriveSyncService
 let fileSyncService: FileSyncService
@@ -122,7 +124,21 @@ function registerIpc(): void {
   ipcMain.handle(Channels.filesConflicts, (e, req: unknown) => fileService.conflicts(e.sender.id, req))
   ipcMain.handle(Channels.filesTransfer, (e, req: unknown) => fileService.transfer(e.sender.id, req))
   ipcMain.handle(Channels.filesCancel, (e, jobId: unknown) => fileService.cancel(e.sender.id, jobId))
-  ipcMain.handle(Channels.filesOpen, (e, id: unknown, path: unknown) => fileService.open(e.sender.id, id, path))
+  ipcMain.handle(Channels.filesOpen, (e, id: unknown, path: unknown, options: unknown) => fileService.open(e.sender.id, id, path, options))
+  ipcMain.handle(Channels.filesPickApp, async (e): Promise<{ app: AppChoice | null }> => {
+    const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
+    const opts = {
+      title: 'Choose an application',
+      defaultPath: process.platform === 'darwin' ? '/Applications' : process.platform === 'win32' ? process.env.ProgramFiles ?? 'C:\\Program Files' : '/usr/bin',
+      properties: ['openFile'] as 'openFile'[]
+    }
+    const r = await (win ? dialog.showOpenDialog(win, opts) : dialog.showOpenDialog(opts))
+    const path = r.canceled ? undefined : r.filePaths[0]
+    if (!path) return { app: null }
+    return { app: { kind: 'app', path, name: basename(path).replace(/\.(app|exe)$/i, '') } }
+  })
+  ipcMain.handle(Channels.openWithList, () => openWith.list())
+  ipcMain.handle(Channels.openWithRemove, (_e, key: unknown) => (typeof key === 'string' ? openWith.remove(key) : undefined))
   ipcMain.handle(Channels.filesPickFolder, async (e): Promise<{ path: string | null }> => {
     const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
     const opts = { title: 'Choose where to save', defaultPath: app.getPath('downloads'), properties: ['openDirectory', 'createDirectory'] as ('openDirectory' | 'createDirectory')[] }
@@ -302,6 +318,8 @@ void app.whenReady().then(async () => {
     broker,
     vault.lookup
   )
+  openWith = new OpenWithStore(join(userData, 'open-with.json'))
+  await openWith.load()
   fileService = new FilesService(
     {
       home: homedir(),
@@ -310,6 +328,15 @@ void app.whenReady().then(async () => {
       openLocal: async (p) => {
         const err = await shell.openPath(p)
         if (err) throw new Error(err)
+      },
+      openWith: {
+        decide: (name, mode) => openWith.decide(name, mode),
+        remember: (name, how, choice) => openWith.remember(name, how, choice),
+        launch: async (p, choice) => {
+          if (choice.kind === 'app') return launchWith(choice, p)
+          const err = await shell.openPath(p)
+          if (err) throw new Error(err)
+        }
       },
       confirmEditConflict: async (ctx) => {
         const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
