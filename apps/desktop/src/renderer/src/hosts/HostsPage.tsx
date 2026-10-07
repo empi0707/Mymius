@@ -88,6 +88,7 @@ export function HostsPage({ onConnect }: { onConnect(host: HostSummary): void })
                   <span className="sub">{h.username}@{h.host}{h.port !== 22 ? `:${h.port}` : ''}</span>
                 </div>
                 <span className="badge">{authLabel(h)}</span>
+                {h.path && <span className="badge" title="Path mặc định khi mở trong file manager">{h.path}</span>}
                 {h.jumpHostId && <span className="badge">via {hosts.find((x) => x.id === h.jumpHostId)?.name ?? '?'}</span>}
                 <button className="secondary" aria-label={`Edit ${h.name}`} onClick={() => setView({ kind: 'edit', host: h })}>Edit</button>
                 <button className="primary" aria-label={`Connect to ${h.name}`} onClick={() => onConnect(h)}>Connect</button>

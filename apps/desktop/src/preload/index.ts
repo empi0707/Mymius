@@ -92,6 +92,7 @@ const api: MymiusApi = {
       list: () => ipcRenderer.invoke(Channels.openWithList),
       remove: (key) => ipcRenderer.invoke(Channels.openWithRemove, key)
     },
+    alive: (sessionId) => ipcRenderer.invoke(Channels.filesAlive, sessionId),
     pickFolder: () => ipcRenderer.invoke(Channels.filesPickFolder),
     jobs: () => ipcRenderer.invoke(Channels.filesJobs),
     onJob: (l) => subscribe<JobState>(Channels.filesJob, l),

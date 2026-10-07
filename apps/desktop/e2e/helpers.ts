@@ -109,7 +109,7 @@ export async function createVault(page: Page, passphrase: string): Promise<void>
   await page.waitForSelector('text=Chưa có host nào được lưu')
 }
 
-export async function addPasswordHost(page: Page, opts: { name: string; port: number; username: string; password: string }): Promise<void> {
+export async function addPasswordHost(page: Page, opts: { name: string; port: number; username: string; password: string; path?: string }): Promise<void> {
   await page.click('button:has-text("New host")')
   const f = (n: string) => `.section:not([hidden]) input[name=${n}]`
   await page.fill(f('name'), opts.name)
@@ -117,6 +117,7 @@ export async function addPasswordHost(page: Page, opts: { name: string; port: nu
   await page.fill(f('port'), String(opts.port))
   await page.fill(f('username'), opts.username)
   await page.fill(f('password'), opts.password)
+  if (opts.path) await page.fill(f('path'), opts.path)
   await page.click('button[type=submit]:has-text("Save")')
   await page.waitForSelector(`[data-testid="host-${opts.name}"]`)
 }

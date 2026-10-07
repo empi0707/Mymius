@@ -112,20 +112,53 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
   // A search belongs to the folder it was typed in, so moving elsewhere starts it afresh.
   const navigate = (i: 0 | 1, path: string): void => patch(i, { path, selected: [], query: '' })
 
+  /**
+   * Connections stay open when a pane switches to another source, so coming back is instant and lands where the
+   * person left off. One entry per pane and host, kept until the app closes (or the server drops the connection).
+   */
+  const kept = useRef(new Map<string, { session: FsSessionInfo; path: string }>())
+  useEffect(() => {
+    panes.forEach((p, i) => {
+      if (p.session?.kind === 'sftp' && p.session.hostId && p.path !== null && p.status === 'ready') kept.current.set(`${i}:${p.session.hostId}`, { session: p.session, path: p.path })
+    })
+  }, [panes])
+
+  /** The folder a fresh connection starts in: where the person was last, else the host's default path, else home. */
+  const startFolder = async (session: FsSessionInfo, wanted: string | undefined, what: string): Promise<string> => {
+    const home = session.home
+    if (!wanted) return home
+    const target = wanted === '~' ? home : wanted.startsWith('~/') ? home.replace(/\/+$/, '') + wanted.slice(1) : wanted
+    const r = await window.mymius.files.list(session.id, target)
+    if (r.ok) return r.listing.path
+    say(`Không mở được ${what} “${wanted}”: ${r.error}. Đang dùng thư mục home.`, true)
+    return home
+  }
+
   const choose = async (i: 0 | 1, c: { kind: 'place'; path: string } | { kind: 'host'; hostId: string }): Promise<void> => {
-    const old = panesRef.current[i].session
     if (c.kind === 'place') {
       const local = panesRef.current[0].session?.kind === 'local' ? panesRef.current[0].session : panesRef.current[1].session?.kind === 'local' ? panesRef.current[1].session : null
       const session = local ?? (await window.mymius.files.places().then((r) => (r.ok ? r.session : null)))
       if (!session) return
       patch(i, { session, path: c.path, selected: [], status: 'ready', query: '' })
-    } else {
-      patch(i, { status: 'connecting', selected: [], query: '', connectingTo: hosts?.find((h) => h.id === c.hostId)?.name ?? 'máy chủ' })
-      const r = await window.mymius.files.connect(c.hostId)
-      if (!r.ok) return patch(i, { status: 'error', error: r.error })
-      patch(i, { session: r.session, path: r.session.home, status: 'ready' })
+      return
     }
-    if (old && old.kind === 'sftp') void window.mymius.files.disconnect(old.id)
+    const key = `${i}:${c.hostId}`
+    const before = kept.current.get(key)
+    if (before) {
+      if (await window.mymius.files.alive(before.session.id)) {
+        // Still connected: no waiting, and back in the folder it was in.
+        patch(i, { session: before.session, path: before.path, selected: [], query: '', status: 'ready', error: '', reload: panesRef.current[i].reload + 1 })
+        return
+      }
+      kept.current.delete(key) // the server dropped it meanwhile
+      void window.mymius.files.disconnect(before.session.id)
+    }
+    const host = hosts?.find((h) => h.id === c.hostId)
+    patch(i, { status: 'connecting', selected: [], query: '', connectingTo: host?.name ?? 'máy chủ' })
+    const r = await window.mymius.files.connect(c.hostId)
+    if (!r.ok) return patch(i, { status: 'error', error: r.error })
+    const path = await startFolder(r.session, before?.path ?? host?.path, before ? 'thư mục đã mở trước đó' : 'path mặc định của host')
+    patch(i, { session: r.session, path, status: 'ready', error: '' })
   }
 
   const reconnect = async (i: 0 | 1): Promise<void> => {

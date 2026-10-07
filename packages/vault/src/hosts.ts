@@ -22,6 +22,8 @@ export interface HostProfile {
   group?: string
   /** Connect through this host first (ProxyJump). */
   jumpHostId?: string
+  /** Folder on the server that file panes open in after connecting ("~" means the home folder). */
+  path?: string
   notes?: string
   createdAt: number
   updatedAt: number
@@ -50,6 +52,7 @@ export interface HostInput {
     | { type: 'agent' }
   group?: string
   jumpHostId?: string
+  path?: string
   notes?: string
 }
 
@@ -108,6 +111,7 @@ function parseCommon(x: unknown): Omit<HostProfile, 'auth'> {
   }
   const group = optStr(x.group, 'Group', 100)?.trim()
   const jumpHostId = optStr(x.jumpHostId, 'Jump host', 100)
+  const path = optStr(x.path, 'Path', 1024)?.trim()
   const notes = optStr(x.notes, 'Notes', 5000, true)
   const now = Date.now()
   return {
@@ -117,6 +121,7 @@ function parseCommon(x: unknown): Omit<HostProfile, 'auth'> {
     username: str(x.username, 'User', { min: 1, max: 256 }).trim(),
     ...(group ? { group } : {}),
     ...(jumpHostId ? { jumpHostId } : {}),
+    ...(path ? { path } : {}),
     ...(notes ? { notes } : {}),
     createdAt: typeof x.createdAt === 'number' ? x.createdAt : now,
     updatedAt: typeof x.updatedAt === 'number' ? x.updatedAt : now
@@ -191,6 +196,7 @@ export interface HostSummary {
   keyName?: string
   group?: string
   jumpHostId?: string
+  path?: string
   notes?: string
 }
 
@@ -206,6 +212,7 @@ export function summarizeHost(id: string, h: HostProfile, keyName?: string): Hos
     ...(keyName ? { keyName } : {}),
     ...(h.group ? { group: h.group } : {}),
     ...(h.jumpHostId ? { jumpHostId: h.jumpHostId } : {}),
+    ...(h.path ? { path: h.path } : {}),
     ...(h.notes ? { notes: h.notes } : {})
   }
 }

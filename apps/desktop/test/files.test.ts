@@ -552,6 +552,26 @@ describe('choosing the program a file opens with', () => {
   })
 })
 
+describe('keeping connections open', () => {
+  it('reports whether a session is still usable', async () => {
+    const sid = await connect()
+    expect(files.alive(OWNER, sid)).toBe(true)
+    expect(files.alive(2, sid)).toBe(false) // someone else's
+    expect(files.alive(OWNER, 'nope')).toBe(false)
+    await files.disconnect(OWNER, sid)
+    expect(files.alive(OWNER, sid)).toBe(false)
+  })
+
+  it('a session stays alive while another one is opened on the same host, and is dropped when the server closes it', async () => {
+    const a = await connect()
+    const b = await connect()
+    expect(files.alive(OWNER, a) && files.alive(OWNER, b)).toBe(true)
+    expect(server.connectionCount()).toBe(1) // one login for both
+    await server.close()
+    await until(() => !files.alive(OWNER, a), 'the dropped connection to be noticed')
+  })
+})
+
 describe('window shutdown', () => {
   it('closing a window ends its connections, edits and running jobs', async () => {
     await put(remote, 'f', 'x')

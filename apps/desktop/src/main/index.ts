@@ -139,6 +139,7 @@ function registerIpc(): void {
   })
   ipcMain.handle(Channels.openWithList, () => openWith.list())
   ipcMain.handle(Channels.openWithRemove, (_e, key: unknown) => (typeof key === 'string' ? openWith.remove(key) : undefined))
+  ipcMain.handle(Channels.filesAlive, (e, id: unknown) => fileService.alive(e.sender.id, id))
   ipcMain.handle(Channels.filesPickFolder, async (e): Promise<{ path: string | null }> => {
     const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
     const opts = { title: 'Choose where to save', defaultPath: app.getPath('downloads'), properties: ['openDirectory', 'createDirectory'] as ('openDirectory' | 'createDirectory')[] }

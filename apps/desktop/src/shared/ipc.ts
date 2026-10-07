@@ -53,6 +53,8 @@ export interface HostSummary {
   keyName?: string
   group?: string
   jumpHostId?: string
+  /** Folder the file panes open in after connecting. */
+  path?: string
   notes?: string
 }
 
@@ -69,6 +71,8 @@ export interface HostInput {
     | { type: 'agent' }
   group?: string
   jumpHostId?: string
+  /** Folder the file panes open in after connecting. */
+  path?: string
   notes?: string
 }
 
@@ -332,6 +336,7 @@ export const Channels = {
   setTheme: 'app:set-theme',
   pickPrivateKey: 'dialog:pick-private-key',
   filesPickFolder: 'files:pick-folder',
+  filesAlive: 'files:alive',
   filesPickApp: 'files:pick-app',
   openWithList: 'files:open-with-list',
   openWithRemove: 'files:open-with-remove',
@@ -489,6 +494,8 @@ export interface FilesApi {
     list(): Promise<OpenAssociation[]>
     remove(key: string): Promise<void>
   }
+  /** Is this connection still open? (A server can drop it while the pane is not looking.) */
+  alive(sessionId: string): Promise<boolean>
   /** Native "choose a folder" dialog (starts in Downloads). `path` is null when the person cancelled. */
   pickFolder(): Promise<{ path: string | null }>
   jobs(): Promise<JobState[]>

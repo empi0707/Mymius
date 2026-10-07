@@ -22,6 +22,7 @@ export function HostEditor({ host, hosts, keys, onCancel, onSave, onDelete }: Pr
   const [username, setUsername] = useState(host?.username ?? '')
   const [group, setGroup] = useState(host?.group ?? '')
   const [jump, setJump] = useState(host?.jumpHostId ?? '')
+  const [path, setPath] = useState(host?.path ?? '')
   const [notes, setNotes] = useState(host?.notes ?? '')
   const [type, setType] = useState<AuthType>(host?.authType ?? 'password')
   const [password, setPassword] = useState('')
@@ -48,6 +49,7 @@ export function HostEditor({ host, hosts, keys, onCancel, onSave, onDelete }: Pr
       auth,
       ...(group.trim() ? { group: group.trim() } : {}),
       ...(jump ? { jumpHostId: jump } : {}),
+      ...(path.trim() ? { path: path.trim() } : {}),
       ...(notes.trim() ? { notes } : {})
     })
     setBusy(false)
@@ -99,6 +101,7 @@ export function HostEditor({ host, hosts, keys, onCancel, onSave, onDelete }: Pr
           </select>
         </label>
       </div>
+      <label>Path<input name="path" value={path} onChange={(e) => setPath(e.target.value)} spellCheck={false} placeholder="/var/www  hoặc  ~/projects" /><span className="hint">Thư mục mặc định mà file manager mở sau khi kết nối tới host này (để trống = thư mục home).</span></label>
       <label>Notes<textarea name="notes" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
 
       {error && <p className="error" role="alert">{error}</p>}

@@ -328,6 +328,8 @@ describe('editing a remote file', () => {
 
   it('double-clicking a server file opens it in the editor and shows it as being edited', async () => {
     await pane(1).locator('select').selectOption({ label: 'box' })
+    // The connection was kept and the pane is back in the folder it was left in: go to the root, where app.conf is.
+    await pane(1).locator('.crumb').first().click()
     await expect.poll(() => names(1)).toContain('app.conf')
     await row(1, 'app.conf').dblclick()
     // Nothing is saved yet for this kind of file, so the app asks which program to use: take the system default, for every file.
@@ -389,6 +391,7 @@ describe('editing a remote file', () => {
 describe('layout', () => {
   it('captures both panes', async () => {
     await pane(1).locator('select').selectOption({ label: 'box' })
+    await pane(1).locator('.crumb').first().click()
     await expect.poll(() => names(1)).toContain('srv')
     await row(0, 'photo.jpg').click()
     await page.screenshot({ path: process.env.E2E_SHOT_FILES ?? join(tmp, 'files.png') })

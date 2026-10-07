@@ -103,6 +103,25 @@ describe('hosts', () => {
   })
 })
 
+describe('a host\'s default path', () => {
+  it('is saved, trimmed, shown in the list, kept when the host is edited, and can be cleared', async () => {
+    const svc = await make()
+    const id = ok(await svc.saveHost(undefined, { ...pw('x'), path: '  /var/www  ' })).id
+    const listed = () => (ok(svc.listHosts()).hosts.find((h) => h.id === id) as { path?: string }).path
+    expect(listed()).toBe('/var/www')
+    ok(await svc.saveHost(id, { ...pw(), path: '~/projects' }))
+    expect(listed()).toBe('~/projects')
+    ok(await svc.saveHost(id, { ...pw() })) // no path in the form: cleared
+    expect(listed()).toBeUndefined()
+  })
+
+  it('refuses control characters and absurd lengths', async () => {
+    const svc = await make()
+    expect(err(await svc.saveHost(undefined, { ...pw('x'), path: '/a\nb' }))).toMatch(/not allowed/)
+    expect(err(await svc.saveHost(undefined, { ...pw('x'), path: '/' + 'a'.repeat(1030) }))).toMatch(/too long/)
+  })
+})
+
 describe('keys', () => {
   it('imports a key file into the vault; the UI sees a name and fingerprint, never the key', async () => {
     const svc = await make()

@@ -227,3 +227,8 @@ Hộp thoại hỏi cho chọn ứng dụng bằng hộp thoại hệ điều h�
 
 Với file trên server, ứng dụng được chọn mở **bản tạm**, vẫn theo dõi thay đổi và tải lên mỗi lần lưu, phát hiện xung đột như cũ (`RemoteEditManager.openInEditor` nay nhận hàm khởi chạy riêng). Ứng dụng chạy bằng `execFile`/`open -a`/`start` (không qua shell, nên tên file không chèn được lệnh) và tách khỏi Mymius (`detached`). `files.open` không có tham số `options` vẫn giữ hành vi cũ (ứng dụng mặc định) để tương thích.
 
+## Path mặc định của host và giữ kết nối trong file manager
+
+- **Path** là trường tùy chọn của host trong vault (`HostProfile.path`, kiểm tra như các trường khác, tối đa 1024 ký tự, không ký tự điều khiển). Là thư mục server mà **file pane** mở sau khi kết nối thành công; `~` hoặc `~/x` được hiểu theo thư mục home của server; để trống thì vào home. Nếu thư mục không mở được thì báo lỗi (có tên path và lý do) và rơi về home. Trường này đi cùng host qua đồng bộ vault; app phiên bản cũ bỏ qua nó. Chưa áp dụng cho tab Terminal (shell vẫn bắt đầu ở home).
+- **Giữ kết nối**: `FilesPage` nhớ, cho từng cặp (pane, host), session SFTP và thư mục hiện tại (`kept`). Đổi pane sang nguồn khác **không còn ngắt** session cũ (trước đây `disconnect`). Chọn lại host: nếu `files.alive` báo session còn sống thì dùng lại ngay (không hiện "Đang kết nối", đứng đúng thư mục cũ, làm mới danh sách); nếu server đã ngắt trong lúc đó thì bỏ session cũ, kết nối mới và cố vào lại thư mục đã đứng, rồi mới tới path mặc định, rồi home. Các kết nối đóng khi tắt app/cửa sổ (`closeOwnedBy`), hoặc khi bạn chọn Retry sau khi mất kết nối. Hai pane vẫn dùng chung một kết nối SSH tới cùng host (pool), nên giữ thêm session chỉ tốn một kênh SFTP.
+

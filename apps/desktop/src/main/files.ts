@@ -143,6 +143,11 @@ export class FilesService {
 
   // ---- sessions ----------------------------------------------------------------------------------
 
+  /** Still usable? Sessions are kept open while the person looks at another server, and a server may drop them meanwhile. */
+  alive(owner: number, sessionId: unknown): boolean {
+    try { this.session(owner, sessionId); return true } catch { return false }
+  }
+
   private session(owner: number, id: unknown): Session {
     const s = typeof id === 'string' ? this.sessions.get(id) : undefined
     if (!s || (s.owner !== null && s.owner !== owner)) throw new Error('Kết nối đó không còn mở nữa')
