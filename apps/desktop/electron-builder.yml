@@ -20,6 +20,11 @@ mac:
   hardenedRuntime: true
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
+  # macOS 15+ blocks apps from reaching devices on the local network (VMs, NAS, routers: 192.168.x.x, 10.x.x.x) until
+  # the person allows it, and only asks if the app explains why. Without this the connection fails with EHOSTUNREACH
+  # although Terminal can reach the same address.
+  extendInfo:
+    NSLocalNetworkUsageDescription: Mymius cần truy cập mạng nội bộ để kết nối SSH tới máy ảo và server trong mạng LAN của bạn.
   # Signing and notarization read APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / CSC_LINK from the environment.
 win:
   target: [nsis, zip]

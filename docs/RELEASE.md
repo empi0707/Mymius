@@ -55,3 +55,12 @@ Job `package` trong `.github/workflows/ci.yml` chạy `electron-builder --dir` t
 ## Chưa xác minh
 
 Đã build và chạy thử trên Linux (AppImage, deb). Windows và macOS chưa từng được build hay chạy thật.
+
+## Sự cố thường gặp trên macOS
+
+**`connect EHOSTUNREACH 192.168.x.x:22` (máy ảo, NAS, server trong LAN) trong khi `ssh` ở Terminal vẫn vào được.** macOS 15 trở lên chặn ứng dụng truy cập thiết bị trong mạng nội bộ cho tới khi người dùng cho phép (quyền *Local Network*). Terminal đã có quyền nên không bị, còn Mymius thì chưa. Dấu hiệu nhận biết: địa chỉ nguồn trong lỗi là IP của cầu nối máy ảo (vd. `192.168.64.1`), tức đường đi có sẵn nhưng bị chặn.
+
+- Mở **System Settings → Privacy & Security → Local Network**, bật **Mymius** (khi chạy `pnpm dev` thì bật cho **Electron** hoặc cho ứng dụng Terminal/IDE bạn chạy lệnh). Sau đó mở lại app.
+- Nếu Mymius không có trong danh sách: bản build cũ chưa khai báo lý do dùng mạng nội bộ nên macOS không hỏi. `electron-builder.yml` nay có `NSLocalNetworkUsageDescription`; build lại bản mới, mở app và kết nối tới một IP trong LAN thì macOS sẽ hiện hộp thoại xin quyền.
+- Kiểm tra nhanh: chạy thẳng file thực thi từ Terminal (`/path/to/mymius.app/Contents/MacOS/mymius`). App chạy từ Terminal dùng quyền của Terminal; nếu lúc đó kết nối được thì nguyên nhân đúng là quyền Local Network.
+
