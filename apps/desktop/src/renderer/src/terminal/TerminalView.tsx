@@ -3,11 +3,15 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { OS, TerminalTarget } from '../../../shared/ipc'
 import { THEME_EVENT, isDark } from '../theme'
+import { ContextMenu } from '../files/ContextMenu'
+import type { MenuEntry } from '../files/menu'
 import { CommandTracker } from './command-tracker'
 import { router } from './session'
+
+type TermAction = 'copy' | 'paste' | 'selectAll' | 'clear'
 
 export type TabStatus = 'connecting' | 'open' | 'closed' | 'error'
 
@@ -34,6 +38,7 @@ export function TerminalView({ request, os, attempt, active, onStatus, onSession
   const host = useRef<HTMLDivElement>(null)
   const fitRef = useRef<FitAddon | null>(null)
   const termRef = useRef<Terminal | null>(null)
+  const [menu, setMenu] = useState<{ x: number; y: number; selected: boolean } | null>(null)
 
   useEffect(() => {
     const el = host.current
@@ -73,8 +78,20 @@ export function TerminalView({ request, os, attempt, active, onStatus, onSession
     // Copy/paste that does not fight the terminal: Ctrl+C is SIGINT unless something is selected.
     const mac = os === 'darwin'
     term.attachCustomKeyEventHandler((e) => {
-      if (e.type !== 'keydown' || mac) return true
+      if (e.type !== 'keydown') return true
       const key = e.key.toLowerCase()
+      if (mac) {
+        // Normally the Edit menu does this; handled here too so it also works when the menu does not get the key.
+        if (e.metaKey && !e.ctrlKey && !e.altKey && key === 'c' && term.hasSelection()) {
+          void navigator.clipboard.writeText(term.getSelection())
+          return false
+        }
+        if (e.metaKey && !e.ctrlKey && !e.altKey && key === 'v') {
+          void navigator.clipboard.readText().then((t) => term.paste(t))
+          return false
+        }
+        return true
+      }
       if (e.ctrlKey && key === 'c' && (e.shiftKey || term.hasSelection())) {
         void navigator.clipboard.writeText(term.getSelection())
         term.clearSelection()
@@ -182,5 +199,37 @@ export function TerminalView({ request, os, attempt, active, onStatus, onSession
     termRef.current?.focus()
   }, [active])
 
-  return <div ref={host} className="term-host" data-testid={testId} />
+  const mod = os === 'darwin' ? '⌘' : 'Ctrl+Shift+'
+  const entries: MenuEntry<TermAction>[] = [
+    { action: 'copy', label: 'Copy', hint: `${mod}C`, disabled: !menu?.selected },
+    { action: 'paste', label: 'Paste', hint: `${mod}V` },
+    { separator: true },
+    { action: 'selectAll', label: 'Select all' },
+    { action: 'clear', label: 'Clear' }
+  ]
+  const pick = (action: TermAction): void => {
+    const term = termRef.current
+    setMenu(null)
+    if (!term) return
+    if (action === 'copy') { void navigator.clipboard.writeText(term.getSelection()); term.clearSelection() }
+    else if (action === 'paste') void navigator.clipboard.readText().then((t) => term.paste(t))
+    else if (action === 'selectAll') term.selectAll()
+    else term.clear()
+    term.focus()
+  }
+
+  return (
+    <>
+      <div
+        ref={host}
+        className="term-host"
+        data-testid={testId}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          setMenu({ x: e.clientX, y: e.clientY, selected: Boolean(termRef.current?.hasSelection()) })
+        }}
+      />
+      {menu && <ContextMenu x={menu.x} y={menu.y} entries={entries} onPick={pick} onClose={() => { setMenu(null); termRef.current?.focus() }} />}
+    </>
+  )
 }

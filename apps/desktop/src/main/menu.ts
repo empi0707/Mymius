@@ -28,3 +28,16 @@ export function menuTemplate(mac: boolean, closeTab: () => void): MenuItemConstr
     { label: 'Window', submenu: [{ role: 'minimize' }, ...(mac ? [{ role: 'zoom' } as MenuItemConstructorOptions] : [])] }
   ]
 }
+
+/**
+ * The right-click menu of text fields and of selected text. Electron shows nothing on right-click by itself, so
+ * without this there was no way to Copy / Paste with the mouse in the search box, host form, vault passphrase, etc.
+ * (The terminal and the file lists draw their own menus.)
+ */
+export function contextMenuTemplate(p: { isEditable: boolean; hasSelection: boolean }): MenuItemConstructorOptions[] {
+  if (p.isEditable) {
+    return [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { type: 'separator' }, { role: 'selectAll' }]
+  }
+  if (p.hasSelection) return [{ role: 'copy' }, { type: 'separator' }, { role: 'selectAll' }]
+  return []
+}

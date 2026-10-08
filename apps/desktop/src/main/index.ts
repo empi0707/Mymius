@@ -13,7 +13,7 @@ import { FileSyncService } from './file-sync-service'
 import { FilesService } from './files'
 import { OpenWithStore, launchWith } from './open-with'
 import { OsSecretStore } from './secret-store'
-import { menuTemplate } from './menu'
+import { contextMenuTemplate, menuTemplate } from './menu'
 import { TerminalService } from './terminals'
 import { VaultService } from './vault-service'
 
@@ -57,6 +57,11 @@ function createWindow(): BrowserWindow {
   })
 
   win.once('ready-to-show', () => win.show())
+
+  win.webContents.on('context-menu', (_e, params) => {
+    const template = contextMenuTemplate({ isEditable: params.isEditable, hasSelection: params.selectionText.length > 0 })
+    if (template.length > 0) Menu.buildFromTemplate(template).popup({ window: win })
+  })
 
   // The renderer only ever shows our own UI. Links clicked in a terminal open in the user's browser.
   win.webContents.setWindowOpenHandler(({ url }) => {

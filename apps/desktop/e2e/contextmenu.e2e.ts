@@ -78,7 +78,7 @@ describe('right-click menu', () => {
     expect(await itemsInMenu()).not.toContain('Download…')
     await page.keyboard.press('Escape')
     await rightClick(1, 'notes.txt')
-    expect(await itemsInMenu()).toEqual(['Open', 'Edit', 'Open with…', 'Download…', 'Copy to other pane', 'Move to other pane', 'Rename', 'Copy path', 'Delete', 'New folder', 'Refresh'])
+    expect(await itemsInMenu()).toEqual(['Open', 'Edit', 'Open with…', 'Download…', 'Copy', 'Cut', 'Paste', 'Copy to other pane', 'Move to other pane', 'Rename', 'Copy path', 'Delete', 'New folder', 'Refresh'])
     await page.keyboard.press('Escape')
   })
 
@@ -134,7 +134,7 @@ describe('right-click menu', () => {
 
   it('New folder and Refresh from the empty space of a pane', async () => {
     await pane(0).locator('.rows').click({ button: 'right', position: { x: 60, y: 200 } })
-    expect(await itemsInMenu()).toEqual(['New folder', 'Refresh', 'Select all'])
+    expect(await itemsInMenu()).toEqual(['Paste', 'New folder', 'Refresh', 'Select all'])
     await choose('New folder')
     await page.fill('input[aria-label=Name]', 'made-here')
     await page.click('button:has-text("Create")')

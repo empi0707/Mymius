@@ -1,16 +1,16 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { MenuAction, MenuEntry } from './menu'
+import type { MenuEntry } from './menu'
 
-interface Props {
+interface Props<A extends string> {
   x: number
   y: number
-  entries: MenuEntry[]
-  onPick(action: MenuAction): void
+  entries: MenuEntry<A>[]
+  onPick(action: A): void
   onClose(): void
 }
 
 /** A right-click menu: closes on Escape, a click elsewhere, scrolling or losing the window; arrows + Enter work too. */
-export function ContextMenu({ x, y, entries, onPick, onClose }: Props): React.JSX.Element {
+export function ContextMenu<A extends string>({ x, y, entries, onPick, onClose }: Props<A>): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState({ left: x, top: y })
   const actionable = entries.flatMap((e, i) => (!e.separator && !e.disabled ? [i] : []))

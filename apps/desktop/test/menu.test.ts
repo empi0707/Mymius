@@ -28,3 +28,13 @@ describe('application menu', () => {
     expect(n).toBe(1)
   })
 })
+
+describe('right-click menu of text fields', () => {
+  it('has Cut / Copy / Paste in a field, Copy for selected text, and nothing otherwise', async () => {
+    const { contextMenuTemplate } = await import('../src/main/menu')
+    const roles = (t: ReturnType<typeof contextMenuTemplate>) => t.flatMap((i) => (i.role ? [i.role] : []))
+    expect(roles(contextMenuTemplate({ isEditable: true, hasSelection: false }))).toEqual(['undo', 'redo', 'cut', 'copy', 'paste', 'selectAll'])
+    expect(roles(contextMenuTemplate({ isEditable: false, hasSelection: true }))).toEqual(['copy', 'selectAll'])
+    expect(contextMenuTemplate({ isEditable: false, hasSelection: false })).toEqual([])
+  })
+})

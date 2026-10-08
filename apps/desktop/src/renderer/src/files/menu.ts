@@ -1,8 +1,8 @@
-export type MenuAction = 'open' | 'edit' | 'openWith' | 'download' | 'copy' | 'move' | 'rename' | 'delete' | 'copyPath' | 'newFolder' | 'refresh' | 'selectAll'
+export type MenuAction = 'open' | 'edit' | 'openWith' | 'clipCopy' | 'clipCut' | 'clipPaste' | 'download' | 'copy' | 'move' | 'rename' | 'delete' | 'copyPath' | 'newFolder' | 'refresh' | 'selectAll'
 
-export type MenuEntry =
+export type MenuEntry<A extends string = MenuAction> =
   | { separator: true }
-  | { separator?: false; action: MenuAction; label: string; hint?: string; danger?: boolean; disabled?: boolean }
+  | { separator?: false; action: A; label: string; hint?: string; danger?: boolean; disabled?: boolean }
 
 export interface MenuContext {
   /** Right-clicked on a file/folder (true) or on the empty space of the list (false). */
@@ -13,6 +13,8 @@ export interface MenuContext {
   singleFile: boolean
   /** The pane shows a server (SFTP), so there is something to download. */
   remote: boolean
+  /** Something was copied or cut in the file manager and can be pasted here. */
+  canPaste: boolean
   /** The other pane is ready to receive copies. */
   hasTarget: boolean
 }
@@ -24,6 +26,8 @@ const mod = (): string => (typeof navigator !== 'undefined' && navigator.platfor
 export function buildMenu(c: MenuContext): MenuEntry[] {
   if (!c.onItems) {
     return [
+      { action: 'clipPaste', label: 'Paste', hint: `${mod()}V`, disabled: !c.canPaste },
+      SEP,
       { action: 'newFolder', label: 'New folder', hint: 'F7' },
       { action: 'refresh', label: 'Refresh', hint: `${mod()}R` },
       SEP,
@@ -37,6 +41,10 @@ export function buildMenu(c: MenuContext): MenuEntry[] {
     { action: 'edit', label: 'Edit', hint: 'F4', disabled: !c.singleFile },
     { action: 'openWith', label: 'Open with…', disabled: !c.singleFile },
     ...(c.remote ? [SEP, { action: 'download', label: many ? `Download ${things}…` : 'Download…' } as MenuEntry] : []),
+    SEP,
+    { action: 'clipCopy', label: many ? `Copy ${things}` : 'Copy', hint: `${mod()}C` },
+    { action: 'clipCut', label: many ? `Cut ${things}` : 'Cut', hint: `${mod()}X` },
+    { action: 'clipPaste', label: 'Paste', hint: `${mod()}V`, disabled: !c.canPaste },
     SEP,
     { action: 'copy', label: many ? `Copy ${things} to other pane` : 'Copy to other pane', hint: 'F5', disabled: !c.hasTarget },
     { action: 'move', label: many ? `Move ${things} to other pane` : 'Move to other pane', hint: 'F6', disabled: !c.hasTarget },

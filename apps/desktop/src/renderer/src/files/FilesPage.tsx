@@ -43,6 +43,10 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
   const [dialog, setDialog] = useState<Dialog | null>(null)
   const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
+  /** What Copy / Cut (menu or ⌘C / ⌘X) took in the file manager, to be pasted into a folder later. */
+  const clip = useRef<{ mode: 'copy' | 'move'; sessionId: string; paths: string[]; text: string } | null>(null)
+  const [canPaste, setCanPaste] = useState(false)
   const panesRef = useRef(panes)
   panesRef.current = panes
   const settled = useRef(new Set<string>())
@@ -282,9 +286,71 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
         void navigator.clipboard.writeText(text).then(() => say(panesRef.current[i].selected.length === 1 ? 'Đã sao chép đường dẫn' : 'Đã sao chép các đường dẫn'))
         return
       }
+      case 'clipCopy':
+      case 'clipCut': {
+        const text = stash(i, action === 'clipCut')
+        if (text !== null) void navigator.clipboard.writeText(text)
+        return
+      }
+      case 'clipPaste': return void pasteInto(i)
       case 'selectAll': return
     }
   }
+
+  /** Remember the selection of a pane for pasting; the system clipboard gets the paths as text, handy in a terminal or an editor. */
+  const stash = (i: 0 | 1, cut: boolean): string | null => {
+    const s = panesRef.current[i]
+    if (!s.session || s.selected.length === 0) { say('Hãy chọn một mục trước'); return null }
+    const text = s.selected.join('\n')
+    clip.current = { mode: cut ? 'move' : 'copy', sessionId: s.session.id, paths: [...s.selected], text }
+    setCanPaste(true)
+    say(`Đã ${cut ? 'cắt' : 'sao chép'} ${s.selected.length} mục. Mở thư mục đích rồi dán (${navigator.platform.startsWith('Mac') ? '⌘' : 'Ctrl+'}V).`)
+    return text
+  }
+
+  /** Paste what was copied or cut into the folder shown in a pane. `clipboardText` is what the system clipboard holds now. */
+  const pasteInto = async (i: 0 | 1, clipboardText?: string): Promise<void> => {
+    const c = clip.current
+    const to = panesRef.current[i]
+    if (!c) return say('Chưa có file nào được sao chép hoặc cắt. Chọn file rồi bấm Copy (hoặc Cut) trước.')
+    if (!to.session || to.path === null) return
+    const now = clipboardText ?? (await navigator.clipboard.readText().catch(() => c.text))
+    if (now !== c.text) { // something else was copied since: the file clipboard is out of date
+      clip.current = null
+      setCanPaste(false)
+      return say('Clipboard đã chứa nội dung khác, nên không còn file nào để dán.')
+    }
+    await transfer(c.mode, c.sessionId, c.paths, to.session.id, to.path)
+    if (c.mode === 'move') { clip.current = null; setCanPaste(false) }
+  }
+
+  // ⌘C / ⌘X / ⌘V (and the Edit menu) while the focus is on the file lists: copy, cut and paste FILES. Text boxes keep the normal behaviour.
+  const activeRef = useRef(active)
+  activeRef.current = active
+  useEffect(() => {
+    if (!visible) return
+    const mine = (): boolean => {
+      const el = document.activeElement as HTMLElement | null
+      return Boolean(el && rootRef.current?.contains(el) && !el.closest('input, textarea, select, [contenteditable=true]'))
+    }
+    const onCopyCut = (cut: boolean) => (e: ClipboardEvent): void => {
+      if (!mine()) return
+      const text = stash(activeRef.current, cut)
+      e.preventDefault()
+      if (text !== null) e.clipboardData?.setData('text/plain', text)
+    }
+    const onPaste = (e: ClipboardEvent): void => {
+      if (!mine()) return
+      e.preventDefault()
+      void pasteInto(activeRef.current, e.clipboardData?.getData('text/plain') ?? '')
+    }
+    const copy = onCopyCut(false), cut = onCopyCut(true)
+    document.addEventListener('copy', copy)
+    document.addEventListener('cut', cut)
+    document.addEventListener('paste', onPaste)
+    return () => { document.removeEventListener('copy', copy); document.removeEventListener('cut', cut); document.removeEventListener('paste', onPaste) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible])
 
   const focusPane = (i: 0 | 1): void => document.querySelector<HTMLElement>(`[data-testid="pane-${i}"]`)?.focus()
 
@@ -306,7 +372,7 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
   const visibleJobs = useMemo(() => jobs.filter((j) => !settled.current.has('dismissed:' + j.id)), [jobs])
 
   return (
-    <div className="files" onKeyDown={shortcuts}>
+    <div className="files" ref={rootRef} onKeyDown={shortcuts}>
       <div className="fm-toolbar" role="toolbar" aria-label="File actions">
         <button onClick={() => copyMove('copy')} title="Copy to the other pane (F5)">Copy →</button>
         <button onClick={() => copyMove('move')} title="Move to the other pane (F6)">Move →</button>
@@ -363,6 +429,7 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
             onRetry={() => void reconnect(i)}
             hasTarget={panes[other(i)].status === 'ready' && panes[other(i)].session !== null && panes[other(i)].path !== null}
             onMenuAction={(action, entry) => menuAction(i, action, entry)}
+            canPaste={canPaste}
           />
         ))}
       </div>

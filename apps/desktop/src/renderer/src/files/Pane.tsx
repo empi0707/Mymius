@@ -42,6 +42,8 @@ export interface PaneProps {
   onRetry(): void
   /** The other pane is connected and can receive copies. */
   hasTarget: boolean
+  /** The file clipboard (Copy / Cut in the menu, ⌘C / ⌘X) holds something to paste here. */
+  canPaste: boolean
   /** An item of the right-click menu was chosen. `entry` is the row that was clicked, when there was one. */
   onMenuAction(action: MenuAction, entry?: FsEntry): void
 }
@@ -347,7 +349,7 @@ export function Pane(p: PaneProps): React.JSX.Element {
         <ContextMenu
           x={menu.x}
           y={menu.y}
-          entries={buildMenu({ onItems: Boolean(menu.entry), count: menuCount, singleFile: menuCount === 1 && menu.entry !== undefined && !isFolder(menu.entry), remote: p.session?.kind === 'sftp', hasTarget: p.hasTarget })}
+          entries={buildMenu({ onItems: Boolean(menu.entry), count: menuCount, singleFile: menuCount === 1 && menu.entry !== undefined && !isFolder(menu.entry), remote: p.session?.kind === 'sftp', hasTarget: p.hasTarget, canPaste: p.canPaste })}
           onPick={pick}
           onClose={() => setMenu(null)}
         />
