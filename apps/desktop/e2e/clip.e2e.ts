@@ -143,7 +143,66 @@ describe('copy, cut and paste of files in the file manager', () => {
     await page.locator('[data-testid=context-menu] [role=menuitem]:has(span:text-is("Copy"))').click()
     await row(1, 'a.txt').click({ button: 'right' })
     await page.locator('[data-testid=context-menu] [role=menuitem]:has(span:text-is("Paste"))').click()
+    // a.txt is already in that folder: the usual "already exists" question comes up, as with any other copy
+    await page.locator('[role=dialog] button:has-text("Replace")').click({ timeout: 10_000 })
     await expect.poll(async () => (await names(1)), { timeout: 15000 }).toContain('a.txt')
     expect(await readFile(join(homeDir, 'dest', 'a.txt'), 'utf8')).toBe('AAA')
+  })
+})
+
+describe('programs that use the clipboard or the mouse (Claude Code, tmux, vim)', () => {
+  const term = () => page.locator('[data-testid=t1]')
+  const typeLine = async (cmd: string) => { await page.click('[data-testid=t1]'); await page.keyboard.type(cmd); await page.keyboard.press('Enter') }
+
+  it('a program can put text on the clipboard (OSC 52), which is how Claude Code copies', async () => {
+    await H.goTo(page, 'Terminals')
+    await page.click('[data-testid=t1]')
+    await writeClip('before')
+    await typeLine(`printf '\\033]52;c;%s\\a' "$(printf 'from-osc52 \\342\\234\\223' | base64)"`)
+    await expect.poll(readClip, { timeout: 5000 }).toBe('from-osc52 ✓')
+  })
+
+  it('a program cannot READ the clipboard through OSC 52', async () => {
+    await writeClip('top-secret-clipboard')
+    await typeLine(`printf '\\033]52;c;?\\a'; sleep 0.5; echo done-reading`)
+    const text = await H.waitForText(page, 't1', 'done-reading')
+    expect(text).not.toContain(Buffer.from('top-secret-clipboard').toString('base64'))
+  })
+
+  it('with the mouse captured by a program: left clicks reach it, a right click opens our menu instead', async () => {
+    await typeLine(`printf '\\033[?1000h\\033[?1006h'; cat -v`)
+    await page.waitForTimeout(500)
+    await term().click({ position: { x: 200, y: 120 } })
+    await H.waitForText(page, 't1', /\^\[\[<0;\d+;\d+M/) // the program saw the click
+    await term().click({ position: { x: 220, y: 140 }, button: 'right' })
+    await page.locator('[data-testid=context-menu]').waitFor()
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(300)
+    expect(await H.screen(page, 't1')).not.toMatch(/\^\[\[<2;\d+;\d+M/) // the right click was NOT sent to it
+  })
+
+  it('Shift + drag still selects text (Option + drag on macOS), so it can be copied', async () => {
+    await page.keyboard.press('Control+c') // end cat; the mouse stays captured until the program resets it
+    await typeLine(`printf '\\033[?1000h\\033[?1006h'; echo SELECT-THIS-TEXT; cat -v`)
+    await H.waitForText(page, 't1', /\nSELECT-THIS-TEXT\n/)
+    const geo = await page.evaluate(() => {
+      const t = (window as any).__mymiusTerminals.t1
+      const b = t.buffer.active
+      let row = -1
+      for (let i = 0; i < b.length; i++) if ((b.getLine(i)?.translateToString(true) ?? '') === 'SELECT-THIS-TEXT') row = i
+      const screen = document.querySelector('[data-testid=t1] .xterm-screen')!.getBoundingClientRect()
+      return { row: row - b.baseY, x: screen.left, y: screen.top, cw: screen.width / t.cols, ch: screen.height / t.rows }
+    })
+    const y = geo.y + (geo.row + 0.5) * geo.ch
+    await page.keyboard.down('Shift')
+    await page.mouse.move(geo.x + 1, y)
+    await page.mouse.down()
+    await page.mouse.move(geo.x + geo.cw * 16, y, { steps: 5 })
+    await page.mouse.up()
+    await page.keyboard.up('Shift')
+    const sel = await page.evaluate(() => (window as any).__mymiusTerminals.t1.getSelection())
+    expect(sel).toContain('SELECT-THIS')
+    await page.keyboard.press('Control+c')
+    await typeLine(`printf '\\033[?1000l\\033[?1006l'`)
   })
 })

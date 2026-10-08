@@ -238,3 +238,12 @@ Với file trên server, ứng dụng được chọn mở **bản tạm**, vẫ
 - **Terminal**: chuột phải mở menu Copy (tắt khi chưa chọn gì), Paste, Select all, Clear. Phím: ⌘C/⌘V trên macOS (qua menu Edit, có thêm xử lý dự phòng trong `attachCustomKeyEventHandler`), Ctrl+Shift+C/V trên Windows/Linux; Ctrl+C khi *không* chọn gì vẫn là SIGINT.
 - **File manager**: Copy / Cut / Paste áp dụng cho **file**. Copy/Cut ghi nhớ vùng chọn (`clip` trong `FilesPage`) và đặt đường dẫn dạng văn bản lên clipboard hệ thống (dán được vào terminal hay trình soạn thảo); Paste đưa vào thư mục đang mở của pane (copy: giữ bản gốc; cut: di chuyển) qua đúng luồng `transfer` có sẵn (hỏi khi trùng tên, hiện tiến độ). Nếu giữa chừng bạn đã copy thứ khác, clipboard hệ thống không còn khớp nên Paste từ chối thay vì dán nhầm file cũ. Hoạt động qua các sự kiện `copy`/`cut`/`paste` của DOM (menu Edit và phím tắt đều đi qua đó), chỉ khi tiêu điểm đang ở danh sách file, không phải ô nhập.
 
+### Chương trình chạy trong terminal (Claude Code, tmux, vim, htop)
+
+Các chương trình này "chiếm" chuột (mouse reporting) và tự vẽ vùng bôi chọn của chúng, nên xterm không biết có gì đang được chọn: Cmd/Ctrl+C và menu Copy của Mymius không có gì để sao chép, còn chuột phải bị báo thẳng cho chương trình (nó bỏ chọn ngay). Cách xử lý:
+
+- **OSC 52** (`@xterm/addon-clipboard`): chương trình trên server/máy này ghi được lên clipboard của máy bạn bằng chuỗi thoát OSC 52, đây là cách Claude Code, tmux và vim thường dùng để copy. Chỉ cho **ghi**; **đọc** clipboard bị từ chối (`readText` trả chuỗi rỗng) để một server không đọc được thứ bạn đã copy ở nơi khác.
+- **Chuột phải** luôn mở menu của Mymius và **không** gửi cho chương trình (nên không làm mất vùng chọn của nó).
+- **Giữ Option (macOS) / Shift (Windows, Linux) khi kéo chuột** để bôi chọn chữ ngay trong Mymius dù chương trình đang giữ chuột; sau đó Cmd+C / Ctrl+Shift+C hoặc menu chuột phải → Copy.
+- Đánh đổi: các chương trình dùng chuột phải (menu trong `mc`, tmux) không nhận được chuột phải.
+

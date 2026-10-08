@@ -1,3 +1,4 @@
+import { ClipboardAddon, type ClipboardSelectionType } from '@xterm/addon-clipboard'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
@@ -50,10 +51,19 @@ export function TerminalView({ request, os, attempt, active, onStatus, onSession
       cursorBlink: true,
       scrollback: 10_000,
       allowProposedApi: true,
+      // Programs that capture the mouse (Claude Code, tmux, vim, htop...) get the clicks, so plain dragging cannot select
+      // text. Holding Option (macOS) or Shift (Windows/Linux, built in) while dragging selects it in Mymius instead.
+      macOptionClickForcesSelection: true,
       theme: isDark() ? DARK : LIGHT
     })
     const fit = new FitAddon()
     term.loadAddon(fit)
+    // A program on the server can put text on the clipboard (the OSC 52 escape; Claude Code, tmux and vim use it
+    // to copy). Writing is allowed. Reading is refused: a server must not be able to read what you copied elsewhere.
+    term.loadAddon(new ClipboardAddon(undefined, {
+      writeText: async (_sel: ClipboardSelectionType, text: string) => { await navigator.clipboard.writeText(text).catch(() => undefined) },
+      readText: async () => ''
+    }))
     term.loadAddon(new WebLinksAddon((_e, uri) => window.open(uri)))
     term.open(el)
     try {
@@ -224,6 +234,9 @@ export function TerminalView({ request, os, attempt, active, onStatus, onSession
         ref={host}
         className="term-host"
         data-testid={testId}
+        // A right-click is for our menu: do not report it to a program that has the mouse (it would drop its own selection).
+        onMouseDownCapture={(e) => { if (e.button === 2) e.stopPropagation() }}
+        onMouseUpCapture={(e) => { if (e.button === 2) e.stopPropagation() }}
         onContextMenu={(e) => {
           e.preventDefault()
           setMenu({ x: e.clientX, y: e.clientY, selected: Boolean(termRef.current?.hasSelection()) })
