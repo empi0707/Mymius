@@ -71,7 +71,7 @@ main { min-height: 0; }
 .pane { position: relative; flex: 1; min-width: 0; min-height: 0; display: flex; }
 .pane[hidden] { display: none; }
 .term-host { flex: 1; min-width: 0; min-height: 0; padding: 6px 0 0 8px; background: var(--bg); }
-.overlay { position: absolute; inset: auto 16px 16px auto; max-width: min(560px, calc(100% - 32px)); display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg-side); box-shadow: 0 4px 16px rgba(0,0,0,.25); }
+.overlay { position: absolute; z-index: 30; inset: auto 16px 16px auto; max-width: min(560px, calc(100% - 32px)); display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg-side); box-shadow: 0 4px 16px rgba(0,0,0,.25); }
 .overlay p { margin: 0 8px 0 0; color: var(--muted); flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; }
 .form { margin: 24px auto; width: min(420px, 90%); display: flex; flex-direction: column; gap: 12px; }
 .form h2 { margin: 0; font-size: 18px; }

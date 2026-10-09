@@ -251,3 +251,7 @@ Các chương trình này "chiếm" chuột (mouse reporting) và tự vẽ vùn
 
 Một lần dán có thể tới terminal bằng nhiều đường cùng lúc: bộ xử lý phím của Mymius, mục Paste của menu Edit (⌘V trên macOS) và sự kiện `paste` của chính trình duyệt/xterm. Trước đây cả ba đều chạy nên văn bản bị dán hai, thậm chí ba lần. Giờ mọi đường (kể cả menu chuột phải) đều đi qua `pasteOnce` trong `TerminalView`: sự kiện `paste` của DOM bị chặn ở pha capture để xterm không tự dán thêm, và cùng một đoạn văn bản đến lần hai trong vòng 300 ms được coi là cùng một lần dán. Hai lần dán thật cách nhau hơn thế vẫn đều được thực hiện.
 
+## Lỗi lạc trong main process không được làm đứng cửa sổ
+
+Electron mở hộp thoại modal "A JavaScript error occurred in the main process" khi có `uncaughtException` mà không ai xử lý, và hộp thoại này chặn mọi cú bấm (kể cả nút Reconnect / Close tab). Mất kết nối là lúc thư viện SSH dễ ném lỗi nhất. Nên `main/index.ts` đăng ký `uncaughtException` và `unhandledRejection`: chỉ ghi vào `main.log` trong thư mục log của app (macOS: `~/Library/Logs/Mymius/main.log`, Windows: `%APPDATA%\Mymius\logs`, Linux: `~/.config/Mymius/logs`) rồi chạy tiếp. Ngoài ra `ShellSession` nuốt ngoại lệ từ `write/resize/pause/resume/close` khi kênh đã chết, và `SshConnection.connect` giữ một bộ lắng nghe `error` cố định (lỗi thứ hai của ssh2 sau khi quá hạn handshake). Nếu bạn gặp lại triệu chứng đứng/bấm không được, hãy gửi `main.log`: nó ghi nguyên nhân thật.
+

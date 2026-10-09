@@ -28,20 +28,27 @@ export class ShellSession implements TerminalSession {
     })
   }
 
+  // When the connection is lost ssh2 can throw from these (the channel or its protocol is already gone) a moment before
+  // it reports the close. An exception here would surface as an uncaught error in the main process, so it is swallowed:
+  // the 'close' event that follows tells the person the session ended.
   write(data: string | Uint8Array): void {
-    if (!this.closed) this.channel.write(data)
+    if (!this.closed) this.safely(() => this.channel.write(data))
   }
 
   resize(cols: number, rows: number): void {
-    if (!this.closed) this.channel.setWindow(rows, cols, 0, 0)
+    if (!this.closed) this.safely(() => this.channel.setWindow(rows, cols, 0, 0))
   }
 
   pause(): void {
-    this.channel.pause()
+    this.safely(() => this.channel.pause())
   }
 
   resume(): void {
-    this.channel.resume()
+    this.safely(() => this.channel.resume())
+  }
+
+  private safely(fn: () => void): void {
+    try { fn() } catch { /* the connection is going away */ }
   }
 
   onData(listener: (data: Buffer) => void): void {
@@ -59,6 +66,6 @@ export class ShellSession implements TerminalSession {
   }
 
   close(): void {
-    if (!this.closed) this.channel.close()
+    if (!this.closed) this.safely(() => this.channel.close())
   }
 }

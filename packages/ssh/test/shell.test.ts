@@ -301,3 +301,13 @@ describe('jump host', () => {
     expect(c.closed).toBe(true)
   })
 })
+
+describe('a channel that throws while the connection is going away', () => {
+  it('write, resize, pause, resume and close never throw', async () => {
+    const { ShellSession } = await import('../src/shell')
+    const boom = () => { throw new Error('Not connected') }
+    const fake = new Proxy({ on: () => undefined } as Record<string, unknown>, { get: (t, k) => (k in t ? t[k as string] : boom) })
+    const session = new ShellSession(fake as never)
+    expect(() => { session.write('x'); session.resize(80, 24); session.pause(); session.resume(); session.close() }).not.toThrow()
+  })
+})

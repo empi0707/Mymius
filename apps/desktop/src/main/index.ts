@@ -1,3 +1,4 @@
+import { appendFileSync, mkdirSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, safeStorage, shell } from 'electron'
@@ -201,6 +202,23 @@ function keychainIsStrong(): boolean {
   if (!safeStorage.isEncryptionAvailable()) return false
   return process.platform !== 'linux' || safeStorage.getSelectedStorageBackend() !== 'basic_text'
 }
+
+/**
+ * A stray error in the main process (a dropped connection can raise one from inside a library) must never freeze the
+ * window. Without a handler Electron opens a modal "A JavaScript error occurred" box that blocks every click, which
+ * is how a lost connection used to leave "Reconnect / Close tab" unclickable. Log it instead and carry on.
+ */
+function logStray(kind: string, err: unknown): void {
+  const text = `${new Date().toISOString()} ${kind}: ${err instanceof Error ? err.stack ?? err.message : String(err)}\n`
+  console.error(text)
+  try {
+    const dir = app.getPath('logs')
+    mkdirSync(dir, { recursive: true })
+    appendFileSync(join(dir, 'main.log'), text)
+  } catch { /* logging is best effort */ }
+}
+process.on('uncaughtException', (err) => logStray('uncaughtException', err))
+process.on('unhandledRejection', (reason) => logStray('unhandledRejection', reason))
 
 void app.whenReady().then(async () => {
   Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate(isMac, () => BrowserWindow.getFocusedWindow()?.webContents.send(Channels.closeTab))))
