@@ -152,7 +152,8 @@ describe('copy, cut and paste of files in the file manager', () => {
 
 describe('programs that use the clipboard or the mouse (Claude Code, tmux, vim)', () => {
   const term = () => page.locator('[data-testid=t1]')
-  const typeLine = async (cmd: string) => { await page.click('[data-testid=t1]'); await page.keyboard.type(cmd); await page.keyboard.press('Enter') }
+  // Focus without clicking: a click would be reported to the program while the mouse is captured.
+  const typeLine = async (cmd: string) => { await page.focus('[data-testid=t1] textarea'); await page.keyboard.type(cmd); await page.keyboard.press('Enter') }
 
   it('a program can put text on the clipboard (OSC 52), which is how Claude Code copies', async () => {
     await H.goTo(page, 'Terminals')
@@ -202,7 +203,35 @@ describe('programs that use the clipboard or the mouse (Claude Code, tmux, vim)'
     await page.keyboard.up('Shift')
     const sel = await page.evaluate(() => (window as any).__mymiusTerminals.t1.getSelection())
     expect(sel).toContain('SELECT-THIS')
+    await page.evaluate(() => (window as any).__mymiusTerminals.t1.clearSelection()) // with a selection Ctrl+C means "copy"
     await page.keyboard.press('Control+c')
-    await typeLine(`printf '\\033[?1000l\\033[?1006l'`)
+    await expect.poll(async () => (await H.screen(page, 't1')).trimEnd().endsWith('local$'), { timeout: 10_000 }).toBe(true)
+    await typeLine(`printf '\\033[?1000l\\033[?1006l'; echo MOUSE-OFF`)
+    await H.waitForText(page, 't1', /\nMOUSE-OFF\n/)
+  })
+})
+
+describe('pasting once', () => {
+  it('a paste that reaches the terminal two ways at once (the key handler and the Edit menu, as Cmd+V does on macOS) lands once', async () => {
+    await H.goTo(page, 'Terminals')
+    await page.click('[data-testid=t1]')
+    await page.keyboard.press('Control+u')
+    await writeClip('DOUBLE')
+    // The key goes through our handler while the menu's own Paste fires at the same moment.
+    await Promise.all([page.keyboard.press('Control+Shift+V'), wc('paste')])
+    await page.waitForTimeout(600)
+    const text = await H.screen(page, 't1')
+    expect(text).toMatch(/local\$ DOUBLE\s*$/m)
+    expect(text).not.toContain('DOUBLEDOUBLE')
+    await page.keyboard.press('Control+u')
+  })
+
+  it('and two real pastes of the same text a moment apart both go through', async () => {
+    await writeClip('X')
+    await wc('paste')
+    await page.waitForTimeout(500)
+    await wc('paste')
+    await H.waitForText(page, 't1', /local\$ XX\s*$/m)
+    await page.keyboard.press('Control+u')
   })
 })

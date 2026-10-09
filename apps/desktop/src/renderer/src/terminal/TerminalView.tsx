@@ -39,6 +39,7 @@ export function TerminalView({ request, os, attempt, active, onStatus, onSession
   const host = useRef<HTMLDivElement>(null)
   const fitRef = useRef<FitAddon | null>(null)
   const termRef = useRef<Terminal | null>(null)
+  const pasteRef = useRef<(text: string) => void>(() => undefined)
   const [menu, setMenu] = useState<{ x: number; y: number; selected: boolean } | null>(null)
 
   useEffect(() => {
@@ -66,6 +67,23 @@ export function TerminalView({ request, os, attempt, active, onStatus, onSession
     }))
     term.loadAddon(new WebLinksAddon((_e, uri) => window.open(uri)))
     term.open(el)
+
+    // One paste can arrive by several routes at once: our key handler, the Edit menu's Paste (⌘V on macOS), the
+    // browser's own paste event, the right-click menu. All of them end here, and the same text twice within a
+    // moment is one paste, not two.
+    let lastPaste = { text: '', at: 0 }
+    const pasteOnce = (text: string): void => {
+      const now = performance.now()
+      if (text === '' || (text === lastPaste.text && now - lastPaste.at < 300)) return
+      lastPaste = { text, at: now }
+      term.paste(text)
+    }
+    pasteRef.current = pasteOnce
+    term.textarea?.addEventListener('paste', (ev: ClipboardEvent) => {
+      ev.preventDefault()
+      ev.stopImmediatePropagation() // xterm's own handler would paste it again
+      pasteOnce(ev.clipboardData?.getData('text/plain') ?? '')
+    }, true)
     try {
       const gl = new WebglAddon()
       gl.onContextLoss(() => gl.dispose()) // falls back to the DOM renderer
@@ -97,7 +115,7 @@ export function TerminalView({ request, os, attempt, active, onStatus, onSession
           return false
         }
         if (e.metaKey && !e.ctrlKey && !e.altKey && key === 'v') {
-          void navigator.clipboard.readText().then((t) => term.paste(t))
+          void navigator.clipboard.readText().then(pasteOnce)
           return false
         }
         return true
@@ -108,7 +126,7 @@ export function TerminalView({ request, os, attempt, active, onStatus, onSession
         return false
       }
       if (e.ctrlKey && e.shiftKey && key === 'v') {
-        void navigator.clipboard.readText().then((t) => term.paste(t))
+        void navigator.clipboard.readText().then(pasteOnce)
         return false
       }
       return true
@@ -222,7 +240,7 @@ export function TerminalView({ request, os, attempt, active, onStatus, onSession
     setMenu(null)
     if (!term) return
     if (action === 'copy') { void navigator.clipboard.writeText(term.getSelection()); term.clearSelection() }
-    else if (action === 'paste') void navigator.clipboard.readText().then((t) => term.paste(t))
+    else if (action === 'paste') void navigator.clipboard.readText().then(pasteRef.current)
     else if (action === 'selectAll') term.selectAll()
     else term.clear()
     term.focus()

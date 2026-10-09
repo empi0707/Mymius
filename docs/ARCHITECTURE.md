@@ -247,3 +247,7 @@ Các chương trình này "chiếm" chuột (mouse reporting) và tự vẽ vùn
 - **Giữ Option (macOS) / Shift (Windows, Linux) khi kéo chuột** để bôi chọn chữ ngay trong Mymius dù chương trình đang giữ chuột; sau đó Cmd+C / Ctrl+Shift+C hoặc menu chuột phải → Copy.
 - Đánh đổi: các chương trình dùng chuột phải (menu trong `mc`, tmux) không nhận được chuột phải.
 
+### Dán đúng một lần
+
+Một lần dán có thể tới terminal bằng nhiều đường cùng lúc: bộ xử lý phím của Mymius, mục Paste của menu Edit (⌘V trên macOS) và sự kiện `paste` của chính trình duyệt/xterm. Trước đây cả ba đều chạy nên văn bản bị dán hai, thậm chí ba lần. Giờ mọi đường (kể cả menu chuột phải) đều đi qua `pasteOnce` trong `TerminalView`: sự kiện `paste` của DOM bị chặn ở pha capture để xterm không tự dán thêm, và cùng một đoạn văn bản đến lần hai trong vòng 300 ms được coi là cùng một lần dán. Hai lần dán thật cách nhau hơn thế vẫn đều được thực hiện.
+
