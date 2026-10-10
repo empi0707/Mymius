@@ -572,6 +572,8 @@ export interface MymiusApi {
   setTheme(theme: 'system' | 'light' | 'dark'): Promise<void>
   /** Native file picker for a private key; null when cancelled. */
   pickPrivateKey(): Promise<string | null>
+  /** The path of a file the person dragged into the window from Finder / Explorer ('' when it has none). */
+  pathForFile(file: File): string
   /** The Close Tab menu item (Cmd+W, or Ctrl+Shift+W on Windows/Linux) was used. */
   onCloseTab(listener: () => void): () => void
   terminal: TerminalApi

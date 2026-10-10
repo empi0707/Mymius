@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AppChoice, ConflictPolicy, EditInfo, FsEntry, FsListing, FsPlace, FsSessionInfo, HostSummary, JobState, OpenMode, OpenOptions } from '../../../shared/ipc'
 import { filesActivities, setActivities } from '../activity/activity'
 import { useVault } from '../vault/useVault'
+import { DragGhost, type Ghost } from './DragGhost'
+import { dropMode, isMoveIntoSameFolder, type DragEnd } from './drag'
 import { JobsBar } from './JobsBar'
 import { Modal } from './Modal'
 import { Pane, isFolder, type DragPayload } from './Pane'
@@ -262,10 +264,61 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
     }
   }
 
-  const onDropItems = (target: 0 | 1, payload: DragPayload, dir: string, move: boolean): void => {
+  // ---- dragging files ----
+  const endOf = (side: 0 | 1): DragEnd | null => {
+    const sess = panes[side].session
+    return sess ? { kind: sess.kind === 'local' ? 'local' : 'sftp', hostId: sess.hostId } : null
+  }
+  const [ghost, setGhost] = useState<Ghost | null>(null)
+  const dragFrom = useRef<DragEnd | null>(null)
+  const hoverSide = useRef<0 | 1 | null>(null)
+  const dragging = ghost !== null
+  useEffect(() => {
+    if (!dragging) return
+    // The icon follows the pointer wherever it is over the window; it ends with the drag.
+    const move = (e: DragEvent): void => { if (e.clientX || e.clientY) setGhost((g) => (g ? { ...g, x: e.clientX, y: e.clientY } : g)) }
+    const stop = (): void => { dragFrom.current = null; hoverSide.current = null; setGhost(null) }
+    document.addEventListener('dragover', move, true)
+    document.addEventListener('drag', move, true)
+    document.addEventListener('dragend', stop, true)
+    document.addEventListener('drop', stop, true)
+    return () => {
+      document.removeEventListener('dragover', move, true); document.removeEventListener('drag', move, true)
+      document.removeEventListener('dragend', stop, true); document.removeEventListener('drop', stop, true)
+    }
+  }, [dragging])
+
+  const onDragStartInfo = (info: { from: DragEnd; folder: boolean; count: number }): void => {
+    dragFrom.current = info.from
+    setGhost({ x: -100, y: -100, folder: info.folder, count: info.count, copy: false })
+  }
+  /** What a drop on pane `side` would do; the icon shows a "+" when it would copy. */
+  const onDragHover = (side: 0 | 1, over: boolean, altKey: boolean): 'move' | 'copy' => {
+    const from = dragFrom.current
+    const to = endOf(side)
+    const mode = from && to ? dropMode(from, to, altKey) : 'copy'
+    // A pane that has just been left reports it a moment late: ignore that once another pane is the one under the pointer.
+    if (!over && hoverSide.current !== side) return mode
+    hoverSide.current = over ? side : null
+    setGhost((g) => (g && g.copy !== (over && mode === 'copy') ? { ...g, copy: over && mode === 'copy' } : g))
+    return mode
+  }
+
+  const onDropItems = (target: 0 | 1, payload: DragPayload, dir: string, altKey: boolean): void => {
     const to = panes[target].session
-    if (!to) return
-    void transfer(move ? 'move' : 'copy', payload.sessionId, payload.paths, to.id, dir)
+    const toEnd = endOf(target)
+    if (!to || !toEnd) return
+    const mode = dropMode(payload.from, toEnd, altKey)
+    // Dropping files into the folder they are already in (same place) would "move" them onto themselves.
+    if (mode === 'move' && isMoveIntoSameFolder(payload.paths, dir, to.sep ?? '/')) return
+    void transfer(mode, payload.sessionId, payload.paths, to.id, dir)
+  }
+
+  const onDropExternal = (target: 0 | 1, paths: string[], dir: string): void => {
+    const to = panes[target].session
+    const src = local
+    if (!to || !src) return
+    void transfer('copy', src.id, paths, to.id, dir)
   }
 
   const menuAction = (i: 0 | 1, action: MenuAction, entry?: FsEntry): void => {
@@ -425,7 +478,10 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
             onChoose={(c) => void choose(i, c)}
             onOpen={(e) => void openFile(i, e)}
             onListing={(l: FsListing) => patch(i, { path: l.path })}
-            onDropItems={(payload, dir, move) => onDropItems(i, payload, dir, move)}
+            onDropItems={(payload, dir, alt) => onDropItems(i, payload, dir, alt)}
+            onDropExternal={(paths, dir) => onDropExternal(i, paths, dir)}
+            onDragStartInfo={onDragStartInfo}
+            onDragHover={(over, alt) => onDragHover(i, over, alt)}
             onRetry={() => void reconnect(i)}
             hasTarget={panes[other(i)].status === 'ready' && panes[other(i)].session !== null && panes[other(i)].path !== null}
             onMenuAction={(action, entry) => menuAction(i, action, entry)}
@@ -433,6 +489,8 @@ export function FilesPage({ visible }: { visible: boolean }): React.JSX.Element 
           />
         ))}
       </div>
+
+      {ghost && <DragGhost ghost={ghost} />}
 
       {notice && <div className={`notice ${notice.error ? 'error' : ''}`} role={notice.error ? 'alert' : 'status'}>{notice.text}</div>}
 

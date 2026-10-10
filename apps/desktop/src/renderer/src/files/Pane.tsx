@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FsEntry, FsListing, FsPlace, FsSessionInfo, HostSummary } from '../../../shared/ipc'
 import { setActivities } from '../activity/activity'
 import { ContextMenu } from './ContextMenu'
+import { dragImage } from './DragGhost'
 import { formatDate, formatSize } from './format'
 import { buildMenu, type MenuAction } from './menu'
 import { searchEntries } from './search'
@@ -11,6 +12,8 @@ export const DRAG_TYPE = 'application/x-mymius-files'
 export interface DragPayload {
   sessionId: string
   paths: string[]
+  /** What the files were dragged from (this computer or a host), so a drop can tell a move from a copy. */
+  from: { kind: 'local' | 'sftp'; hostId?: string }
 }
 
 export type SortKey = 'name' | 'size' | 'mtime'
@@ -38,7 +41,13 @@ export interface PaneProps {
   onChoose(choice: { kind: 'place'; path: string } | { kind: 'host'; hostId: string }): void
   onOpen(entry: FsEntry): void
   onListing(listing: FsListing): void
-  onDropItems(payload: DragPayload, targetDir: string, move: boolean): void
+  onDropItems(payload: DragPayload, targetDir: string, altKey: boolean): void
+  /** Files from outside the app (Finder, Explorer) were dropped on the folder `targetDir` of this pane. */
+  onDropExternal(paths: string[], targetDir: string): void
+  /** A drag started from this pane. */
+  onDragStartInfo(info: { from: DragPayload['from']; folder: boolean; count: number }): void
+  /** The drag is over this pane (true) or left it (false). Returns what a drop here would do, shown by the cursor. */
+  onDragHover(over: boolean, altKey: boolean): 'move' | 'copy'
   onRetry(): void
   /** The other pane is connected and can receive copies. */
   hasTarget: boolean
@@ -74,6 +83,7 @@ export function Pane(p: PaneProps): React.JSX.Element {
   const [dropTarget, setDropTarget] = useState<string | null>(null)
   const [menu, setMenu] = useState<{ x: number; y: number; entry?: FsEntry } | null>(null)
   const anchor = useRef(0)
+  const leaveTimer = useRef<number | undefined>(undefined)
   const wrapper = useRef<HTMLDivElement>(null)
 
   // Load the folder whenever the place, the path or the reload counter changes.
@@ -196,19 +206,36 @@ export function Pane(p: PaneProps): React.JSX.Element {
     if (!p.session) return
     const paths = selectedSet.has(entry.path) ? [...p.selected] : [entry.path]
     if (!selectedSet.has(entry.path)) select(index, 'replace')
-    const payload: DragPayload = { sessionId: p.session.id, paths }
+    const from: DragPayload['from'] = p.session.kind === 'local' ? { kind: 'local' } : { kind: 'sftp', ...(p.session.hostId ? { hostId: p.session.hostId } : {}) }
+    const payload: DragPayload = { sessionId: p.session.id, paths, from }
     e.dataTransfer.setData(DRAG_TYPE, JSON.stringify(payload))
     e.dataTransfer.effectAllowed = 'copyMove'
+    // The picture that follows the pointer is drawn by the page (see DragGhost), so it can switch to "copy" (a + on the
+    // file icon) while it is over a different server. The browser's own drag picture is hidden.
+    e.dataTransfer.setDragImage(dragImage(), 0, 0)
+    p.onDragStartInfo({ from, folder: isFolder(entry), count: paths.length })
   }
-  const acceptsDrop = (e: React.DragEvent): boolean => e.dataTransfer.types.includes(DRAG_TYPE)
+  const acceptsDrop = (e: React.DragEvent): boolean => e.dataTransfer.types.includes(DRAG_TYPE) || e.dataTransfer.types.includes('Files')
+  const over = (e: React.DragEvent): void => {
+    e.preventDefault()
+    window.clearTimeout(leaveTimer.current) // still inside this pane
+    e.dataTransfer.dropEffect = e.dataTransfer.types.includes(DRAG_TYPE) ? p.onDragHover(true, e.altKey) : 'copy'
+  }
   const onDrop = (e: React.DragEvent, targetDir: string): void => {
     e.preventDefault()
+    window.clearTimeout(leaveTimer.current)
     setDropTarget(null)
-    if (!acceptsDrop(e)) return
-    try {
-      const payload = JSON.parse(e.dataTransfer.getData(DRAG_TYPE)) as DragPayload
-      p.onDropItems(payload, targetDir, e.shiftKey)
-    } catch { /* not ours */ }
+    p.onDragHover(false, false)
+    if (e.dataTransfer.types.includes(DRAG_TYPE)) {
+      try {
+        const payload = JSON.parse(e.dataTransfer.getData(DRAG_TYPE)) as DragPayload
+        p.onDropItems(payload, targetDir, e.altKey)
+      } catch { /* not ours */ }
+    } else if (e.dataTransfer.files.length > 0) {
+      // Files dragged in from Finder / Explorer: they are on this computer, so they are copied here.
+      const paths = Array.from(e.dataTransfer.files).map((f) => window.mymius.pathForFile(f)).filter(Boolean)
+      if (paths.length > 0) p.onDropExternal(paths, targetDir)
+    }
   }
 
   const openMenu = (e: React.MouseEvent, entry: FsEntry | undefined, index = -1): void => {
@@ -306,8 +333,10 @@ export function Pane(p: PaneProps): React.JSX.Element {
         aria-multiselectable="true"
         aria-label={`Files in ${listing?.path ?? ''}`}
         onScroll={v.onScroll}
-        onDragOver={(e) => { if (acceptsDrop(e)) { e.preventDefault(); setDropTarget('.') } }}
-        onDragLeave={() => setDropTarget(null)}
+        onDragOver={(e) => { if (acceptsDrop(e)) { over(e); setDropTarget('.') } }}
+        // Browsers report dragleave when the pointer only moves from one child to another (and give no usable
+        // relatedTarget), so "left the pane" is decided by no dragover arriving for a moment.
+        onDragLeave={() => { window.clearTimeout(leaveTimer.current); leaveTimer.current = window.setTimeout(() => { setDropTarget(null); p.onDragHover(false, false) }, 120) }}
         onDrop={(e) => listing && onDrop(e, listing.path)}
         onClick={(e) => { if (e.target === e.currentTarget) p.onSelect([]) }}
         onContextMenu={(e) => openMenu(e, undefined)}
@@ -330,7 +359,7 @@ export function Pane(p: PaneProps): React.JSX.Element {
                 style={{ top: index * ROW_HEIGHT, height: ROW_HEIGHT }}
                 draggable
                 onDragStart={(e) => onDragStart(e, entry, index)}
-                onDragOver={(e) => { if (folder && acceptsDrop(e)) { e.preventDefault(); e.stopPropagation(); setDropTarget(entry.path) } }}
+                onDragOver={(e) => { if (folder && acceptsDrop(e)) { over(e); e.stopPropagation(); setDropTarget(entry.path) } }}
                 onDrop={(e) => { if (folder) { e.stopPropagation(); onDrop(e, entry.path) } }}
                 onClick={(e) => select(index, e.shiftKey ? 'range' : e.metaKey || e.ctrlKey ? 'toggle' : 'replace')}
                 onDoubleClick={() => activate(entry)}

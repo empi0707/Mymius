@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
+import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron'
 import { Channels, type DriveStatus, type AutoBackupStatus, type EditInfo, type FileSyncStatus, type JobState, type MymiusApi, type TerminalDataEvent, type TerminalExitEvent, type VaultStatus } from '../shared/ipc'
 
 function subscribe<T>(channel: string, listener: (e: T) => void): () => void {
@@ -11,6 +11,7 @@ const api: MymiusApi = {
   appInfo: () => ipcRenderer.invoke(Channels.appInfo),
   setTheme: (theme) => ipcRenderer.invoke(Channels.setTheme, theme),
   pickPrivateKey: () => ipcRenderer.invoke(Channels.pickPrivateKey),
+  pathForFile: (file) => { try { return webUtils.getPathForFile(file) } catch { return '' } },
   onCloseTab: (l) => subscribe<void>(Channels.closeTab, () => l()),
   terminal: {
     open: (req) => ipcRenderer.invoke(Channels.terminalOpen, req),

@@ -255,3 +255,11 @@ Một lần dán có thể tới terminal bằng nhiều đường cùng lúc: b
 
 Electron mở hộp thoại modal "A JavaScript error occurred in the main process" khi có `uncaughtException` mà không ai xử lý, và hộp thoại này chặn mọi cú bấm (kể cả nút Reconnect / Close tab). Mất kết nối là lúc thư viện SSH dễ ném lỗi nhất. Nên `main/index.ts` đăng ký `uncaughtException` và `unhandledRejection`: chỉ ghi vào `main.log` trong thư mục log của app (macOS: `~/Library/Logs/Mymius/main.log`, Windows: `%APPDATA%\Mymius\logs`, Linux: `~/.config/Mymius/logs`) rồi chạy tiếp. Ngoài ra `ShellSession` nuốt ngoại lệ từ `write/resize/pause/resume/close` khi kênh đã chết, và `SshConnection.connect` giữ một bộ lắng nghe `error` cố định (lỗi thứ hai của ssh2 sau khi quá hạn handshake). Nếu bạn gặp lại triệu chứng đứng/bấm không được, hãy gửi `main.log`: nó ghi nguyên nhân thật.
 
+## Kéo thả file giữa các pane
+
+Quy tắc nằm trong `files/drag.ts` (`dropMode`, thuần, có unit test): thả vào pane **cùng nguồn** (cả hai là máy này, hoặc cả hai là cùng một host, kể cả khi mỗi pane có phiên SFTP riêng, so sánh theo `hostId`) thì **di chuyển**; khác nguồn (khác host, hoặc giữa máy này và server) thì **sao chép**. Giữ **Alt/Option** khi thả luôn là sao chép. Thả vào chính thư mục các file đang ở thì không làm gì (`isMoveIntoSameFolder`).
+
+Hình icon đi theo con trỏ do trang tự vẽ (`DragGhost`), vì hình kéo gốc của trình duyệt cố định từ lúc bắt đầu kéo mà chế độ (di chuyển hay sao chép) chỉ biết khi đã tới pane đích. Hình kéo gốc bị thay bằng ảnh trong suốt 1×1. Icon giữ nguyên khi di chuyển và có dấu **+** ở góc dưới bên phải khi sao chép; kéo nhiều mục thì có số lượng ở góc trên. Con trỏ cũng nhận `dropEffect` tương ứng.
+
+Pane báo "con trỏ ở trên pane này" mỗi lần có `dragover`; "rời pane" được suy ra khi một lúc không còn `dragover` (trình duyệt gửi `dragleave` cả khi chỉ đi từ phần tử con này sang phần tử con khác và không cho `relatedTarget`), và báo rời trễ của pane cũ bị bỏ qua nếu pane khác đã là pane dưới con trỏ. File kéo từ **Finder/Explorer** vào pane được sao chép vào thư mục đó (đường dẫn lấy bằng `webUtils.getPathForFile` trong preload); phần này chưa có test tự động.
+
